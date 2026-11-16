@@ -14,12 +14,14 @@ async function connectFerroAccount(config, onSession){
   },
   signOut(){return client.auth.signOut({scope:'local'})},
   async load(){
-   const {data,error}=await client.from('ferro_feral_progress').select('unlocked_level').maybeSingle();
+   const {data,error}=await client.from('ferro_feral_world_progress').select('world_index, unlocked_stage');
    if(error)throw error;
-   return data?.unlocked_level??0;
+   const progress=worlds.map(()=>0);
+   for(const row of data??[])progress[row.world_index]=row.unlocked_stage;
+   return progress;
   },
   async save(level){
-   const {data,error}=await client.rpc('ferro_feral_save_progress',{completed_level:level});
+   const {data,error}=await client.rpc('ferro_feral_save_world_progress',{completed_level:level});
    if(error)throw error;
    return data;
   }

@@ -52,3 +52,30 @@ function saveLevelRecord(storage,records,index,result){
  try{storage.setItem('ferro-records-v1:'+campaign.id,JSON.stringify(next))}catch{}
  return next;
 }
+
+const worldProgressKey='ferro-worlds-v1:'+campaign.id;
+function readWorldProgress(storage){
+ let saved;
+ try{saved=JSON.parse(storage.getItem(worldProgressKey))}catch{}
+ const legacy=readCampaignProgress(storage);
+ return worlds.map((_,world)=>Math.max(
+  Number.isInteger(saved?.[world])?Math.min(4,saved[world]):0,
+  Math.max(0,Math.min(4,legacy-world*5))
+ ));
+}
+function saveWorldProgress(storage,progress){
+ const merged=readWorldProgress(storage).map((stage,index)=>Math.max(stage,Number.isInteger(progress[index])?Math.min(4,progress[index]):0));
+ try{storage.setItem(worldProgressKey,JSON.stringify(merged))}catch{}
+ return merged;
+}
+function levelAvailable(progress,index){
+ const level=levels[index];
+ return !!level&&level.stage<=progress[level.theme];
+}
+function completeWorldStage(storage,progress,index){
+ if(!levelAvailable(progress,index))return progress;
+ const {theme,stage}=levels[index];
+ const next=progress.slice();
+ next[theme]=Math.max(next[theme],Math.min(4,stage+1));
+ return saveWorldProgress(storage,next);
+}

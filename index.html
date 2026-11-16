@@ -21,7 +21,7 @@
 #campaignLevels li{margin:6px 0}#campaignLevels button{padding:8px 12px;text-align:left}#campaignLevels button:disabled{opacity:.48;cursor:default}
 </style>
 <canvas id="screen" width="576" height="324" aria-label="Ferro Feral"></canvas>
-<section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">Travessa cinc mons, venç els guardians i reuneix les claus del Llindar.</p><p id="accountStatus" role="status" hidden></p><div id="menuActions"><button id="start">Inicia la campanya</button><button id="menuCampaign">Campanya</button><button id="accountButton" hidden>Entra amb Google</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
+<section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">Travessa cinc mons, venç els guardians i reuneix les claus del Llindar.</p><p id="accountStatus" role="status" hidden></p><div id="menuActions"><button id="start">Inicia la campanya</button><button id="menuCampaign">Tria un món</button><button id="accountButton" hidden>Entra amb Google</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
 <section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><label>Món <select id="worldSelect"></select></label><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label>Volum dels efectes <input id="fxVolume" type="range" min="0" max="1" step=".05"></label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma Q per saltar i Esc per pausar.</p><p><b>Mòbil</b> · Bolet per moure’t, arrossega la vista per girar i toca FOC, Salt o Arma.</p><p><b>Comandament</b> · Estic esquerre per moure’t, dret per girar, RT per disparar, A per saltar, Y per canviar d’arma i Menú per pausar o continuar.</p></div><button id="menuBack">Torna</button></section></section>
 <button id="pauseButton" type="button" aria-label="Pausa">Ⅱ</button>
 <button id="mute" aria-label="Activa o silencia la música">♫</button>
@@ -731,7 +731,7 @@ function draw(){
 let localStore;
 try{localStore=window.localStorage}catch{}
 let progressStorage=localStore;
-let unlocked=readCampaignProgress(progressStorage);
+let worldProgress=readWorldProgress(progressStorage);
 let records=readLevelRecords(progressStorage);
 
 function completeLevel(){
@@ -741,9 +741,9 @@ function completeLevel(){
  const points=calculateLevelScore({...attempt,special,normal:defeated.length-special});
  const previous=records[n];
  records=saveLevelRecord(progressStorage,records,n,{points,seconds:attempt.seconds,secrets:attempt.secrets});
- unlocked=saveCampaignProgress(progressStorage,n,unlocked);
+ worldProgress=completeWorldStage(progressStorage,worldProgress,n);
  const record=records[n].points!==previous?.points||records[n].seconds!==previous?.seconds;
- if(n===levels.length-1){
+ if(levels[n].stage===4){
   end(true);
   playVictory();
   $('intro').textContent+=' '+points+' punts'+(record?' · Nou rècord':'.');
@@ -753,16 +753,16 @@ function completeLevel(){
   pickupTime=4;
  }
 }
-$('start').dataset.level=unlocked;
-if(unlocked>0)$('start').textContent='Continua la campanya';
+$('start').dataset.level=worldProgress[0];
+if(worldProgress[0]>0)$('start').textContent='Continua la campanya';
 
-function showCampaign(worldIndex=Math.floor(unlocked/5)){
+function showCampaign(worldIndex=levels[n].theme){
  $('campaignName').textContent=campaign.name;
  const select=$('worldSelect');
  select.replaceChildren(...worlds.map((world,index)=>{
   const option=document.createElement('option');
   option.value=index;
-  option.textContent=world.name+(index*5>unlocked?' · Bloquejat':'');
+  option.textContent=world.name;
   return option;
  }));
  select.value=worldIndex;
@@ -774,7 +774,7 @@ function showCampaign(worldIndex=Math.floor(unlocked/5)){
   const row=document.createElement('li');
   const button=document.createElement('button');
   button.type='button';
-  button.disabled=index>unlocked;
+  button.disabled=!levelAvailable(worldProgress,index);
   button.textContent=entry.name+(button.disabled?' · Bloquejat':'');
   button.onclick=e=>{
    state='menu';
@@ -834,11 +834,11 @@ async function flushCloudProgress(){
   const remote=await account.load();
   if(user!==sessionAccount)return;
   const storage=scopedStorage(user);
-  const next=saveCampaignProgress(storage,-1,remote);
+  const next=saveWorldProgress(storage,remote);
   if(user===activeAccount){
-   unlocked=Math.max(unlocked,next);
+   worldProgress=saveWorldProgress(storage,worldProgress.map((stage,index)=>Math.max(stage,next[index])));
    if(state==='menu'&&!$('campaignPanel').hidden)showCampaign();
-   if(state==='menu')$('start').dataset.level=unlocked;
+   if(state==='menu')$('start').dataset.level=worldProgress[0];
   }
   accountStatus.textContent='Sessió de Google activa · Desbloquejos sincronitzats';
  }catch{
@@ -855,17 +855,17 @@ let retryCloud=false;
 function activateAccount(user){
  activeAccount=user;
  progressStorage=user?scopedStorage(user):localStore;
- unlocked=readCampaignProgress(progressStorage);
+ worldProgress=readWorldProgress(progressStorage);
  records=readLevelRecords(progressStorage);
- $('start').dataset.level=unlocked;
- $('start').textContent=unlocked?'Continua la campanya':'Inicia la campanya';
+ $('start').dataset.level=worldProgress[0];
+ $('start').textContent=worldProgress[0]?'Continua la campanya':'Inicia la campanya';
  if(!$('campaignPanel').hidden)showCampaign();
 }
 function updateAccount(user){
  sessionAccount=user;
  accountButton.textContent=user?'Tanca la sessió':'Entra amb Google';
  accountStatus.textContent=user?'Recuperant el progrés…':'Mode convidat';
- if((state==='menu'||state==='end')&&activeAccount!==user)activateAccount(user);
+ if((state==='menu'||state==='end'||state==='world-clear')&&activeAccount!==user)activateAccount(user);
  if(user)void flushCloudProgress();
 }
 accountButton.onclick=async()=>{
@@ -894,14 +894,15 @@ function end(win){
  const canRespawn=!win&&checkpoint!==null;
  showMenuPanel();$('menuRestart').hidden=!canRespawn;redraw=true;
  accountButton.disabled=false;
- state=canRespawn?'checkpoint':'end';document.body.classList.remove('playing');document.exitPointerLock?.();
- $('intro').textContent=win?'Has derrotat els cinc guardians finals i segellat el Llindar.':canRespawn?'Pots tornar al punt de control o reiniciar el nivell.':'La foneria t’ha engolit. Pots tornar a provar el nivell.';
- $('start').textContent=win?'Torna a l’Illa Maleïda':canRespawn?'Torna al punt de control':'Reintenta el nivell';
+ state=win?'world-clear':canRespawn?'checkpoint':'end';document.body.classList.remove('playing');document.exitPointerLock?.();
+ $('intro').textContent=win?'Has completat '+worlds[levels[n].theme].name+'.':canRespawn?'Pots tornar al punt de control o reiniciar el nivell.':'La foneria t’ha engolit. Pots tornar a provar el nivell.';
+ $('start').textContent=win?'Tria un món':canRespawn?'Torna al punt de control':'Reintenta el nivell';
  $('menu').hidden=false;
  $('start').dataset.level=win?0:n;
  keys.clear();resetTouch();
 }
 $('start').onclick=e=>{
+ if(state==='world-clear'){showCampaign();return}
  showMenuPanel();$('menuRestart').hidden=true;
  if(state==='checkpoint'){
   attempt.deaths++;
@@ -912,10 +913,11 @@ $('start').onclick=e=>{
   heat=flash=0;
  }else if(state!=='pause'){
   if(activeAccount!==sessionAccount)activateAccount(sessionAccount);
-  const selected=unlockedLevel(Number($('start').dataset.level));
+  const requested=unlockedLevel(Number($('start').dataset.level));
+  const selected=levelAvailable(worldProgress,requested)?requested:worldProgress[0];
   owned.clear();
   for(let id=0;id<=selected&&id<5;id++)owned.add(id);
-  level(Math.min(selected,unlocked));
+  level(selected);
  }
  accountButton.disabled=false;
  state='playing';$('menu').hidden=true;document.body.classList.add('playing');initAudio();
