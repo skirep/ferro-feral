@@ -36,29 +36,18 @@
 <script src="./assets/levels/biohazard-zero.js"></script>
 <script src="./assets/levels/the-abyss.js"></script>
 <script src="./assets/textures/world-materials.js"></script>
+<script src="./assets/textures/load-textures.js"></script>
 <script src="./campaign.js"></script>
 <script src="./account.js"></script>
 <script src="./supabase-config.js"></script>
+<script src="./assets/combat.js"></script>
+<script src="./assets/music.js"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
 const screen=$('screen'), ctx=screen.getContext('2d');
 let W=576,H=324;
 ctx.imageSmoothingEnabled=false;
-const types=[
- ['Corc de coure','#df965e','runner',24],['Càntir cec','#9cd460','spitter',33],
- ['Guillotina','#dc6961','charger',49],['Fum de sutge','#aa95da','ghost',26],
- ['Monja de sal','#eae4bc','sniper',38],['Cranc de caldera','#ed9634','tank',78],
- ['Bessó invertit','#63d0df','strafer',38],['Niu de claus','#d77ab0','burst',47],
- ['Custodi de vidre','#89b3fb','guard',70],['Cor de la foneria','#ff5641','boss',240]
-];
-const guns=[
- {name:'Martell d’Arc',damage:24,rate:.28,cost:0,color:'#75eaf1',spread:.055,range:12,targets:1,sound:188},
- {name:'Retallada',damage:132,rate:.95,cost:2,color:'#ffc48e',spread:.30,range:5.6,targets:4,sound:102},
- {name:'Perforadora',damage:19,rate:.105,cost:1,color:'#ffdf7c',spread:.075,range:11,targets:1,sound:237},
- {name:'Llança de Plasma',damage:63,rate:.43,cost:2,color:'#7af4c6',spread:.04,range:15,targets:3,sound:361},
- {name:'Forn de Butxaca',damage:105,rate:.72,cost:3,color:'#ff6944',spread:.12,range:10,targets:1,sound:68}
-];
 const mapSize=37;
 const keys=new Set();
 let attempt,checkpoint;
@@ -236,11 +225,6 @@ function tone(freq,duration,volume,wave,when,out,end=freq){
  g.gain.setValueAtTime(.0001,when);g.gain.linearRampToValueAtTime(volume,when+.009);g.gain.exponentialRampToValueAtTime(.0001,when+duration);
  o.connect(filter);filter.connect(g);g.connect(out);o.start(when);o.stop(when+duration+.01);
 }
-const riffs=[
- [0,0,3,0,6,0,5,3,0,0,10,0,6,5,3,1],
- [0,7,0,1,0,8,5,3,0,0,7,10,3,1,6,5],
- [0,0,0,6,1,0,8,6,0,12,0,7,6,3,1,0]
-];
 function encounterMusic(bossAlive,bossDistance,underAttack,remaining,dt){
  if(bossAlive&&bossDistance<7)return {mode:'boss',remaining:2.8};
  const hold=underAttack?2.8:Math.max(0,remaining-dt);
@@ -513,7 +497,7 @@ function lit(rgb,light,index,weight=1){
 }
 function world(ca,sa,plane,eye){
  const chapter=levels[n],theme=chapter.theme;
- const [,floorInk,roofInk,lamp]=palettes[theme];
+ const [wallInk,,roofInk,lamp]=palettes[theme];
  depth.fill(Infinity);
  pixels.fill(shade(chapter.outdoors?ferroSurfaces[theme].sky:roofInk,chapter.outdoors?1:.24));
  if(chapter.outdoors){
@@ -534,7 +518,7 @@ function world(ca,sa,plane,eye){
    const face=(horizon+(eye-z)*focal/d);
    const roof=horizon+(eye-ceiling)*focal/d;
    const top=horizon+(eye-z)*focal/near;
-   const span=(from,to,planeZ,ink,isRoof)=>{
+   const span=(from,to,planeZ,isRoof)=>{
     const start=Math.max(0,Math.ceil(from)),end=Math.min(H,Math.ceil(to));
     for(let y=start;y<end;y++){
      const dist=(eye-planeZ)*focal/(y-horizon);
@@ -542,20 +526,14 @@ function world(ca,sa,plane,eye){
      if(dist<=0||dist>=depth[index])continue;
      const wx=p.x+dx*dist,wy=p.y+dy*dist;
      const j=Math.floor(wx*32),k=Math.floor(wy*32);
-     const seam=(j&31)<2||(k&31)<2;
-     const grain=((j*13^k*31)&15)*.012;
-     const grate=theme===1&&!isRoof&&(j&127)>52&&(j&127)<78;
-     const tread=!isRoof&&theme===0&&((j+k)&15)<2&&((j-k)&15)<6;
-     const wiring=isRoof&&(k&63)>48&&(k&63)<53;
-     const panel=isRoof&&(j&127)>10&&(j&127)<15&&(k&127)>15&&(k&127)<79;
-     const light=(1.05+grain-(seam?.33:0)+(tread?.19:0)-(grate&&k%5<3?.26:0))/(1+dist*.13);
-     const li=lightAt(wx,wy);
-     pixels[index]=panel?lit(lamp,light*1.55,li):lit(ink,light*(wiring?.56:1),li,isRoof?.71:grate?1.28:1);
+     const texture=surfaceTextures[theme][isRoof?4:3][(k&127)*128+(j&127)];
+     const light=1/(1+dist*.13);
+     pixels[index]=lit(texture,light,lightAt(wx,wy),isRoof?.71:1);
      depth[index]=dist;
     }
    };
-   span(Math.min(face,top),Math.max(face,top),z,floorInk,false);
-   if(!chapter.outdoors)span(horizon+(eye-ceiling)*focal/near,roof,ceiling,roofInk,true);
+   span(Math.min(face,top),Math.max(face,top),z,false);
+   if(!chapter.outdoors)span(horizon+(eye-ceiling)*focal/near,roof,ceiling,true);
    if(side){iy+=sy;ty+=ay}else{ix+=sx;tx+=ax}
    const solid=grid[iy]?.[ix]!==0,next=heights[iy]?.[ix]??z;
    if(solid||next!==z){
@@ -574,7 +552,7 @@ function world(ca,sa,plane,eye){
      const luminous=solid&&(theme===1||theme===4)&&(row&63)>=41&&(row&63)<=43&&u>21&&u<106&&style===2;
      const illumination=1.12/(1+d*.106)*(side?.78:1);
      const faceLight=lightAt(p.x+dx*(d-.025),p.y+dy*(d-.025));
-     const texture=solid?wallTextures[theme][style][row*128+u]:wallMaterials[theme][((u+row*2)&31)<12?2:3];
+     const texture=solid?surfaceTextures[theme][style][row*128+u]:((u+row*2)&31)<12?lamp:wallInk;
      pixels[index]=lit(luminous?lamp:texture,illumination*(luminous?1.66:1),faceLight,.95);
      depth[index]=d;
     }
@@ -1041,6 +1019,7 @@ for(const event of ['pointerup','pointercancel','lostpointercapture']){
 }
 document.addEventListener('mousemove',e=>{if(state==='playing'&&document.pointerLockElement===screen)p.a+=e.movementX*.003});
 prepareEnemies();
+loadSurfaceTextures();
 level(0);let last=0;
 let padMoveX=0,padMoveY=0,padTurn=0,padFire=false;
 let padButtonMask=0,padIndex=-1;

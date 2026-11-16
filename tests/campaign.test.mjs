@@ -98,3 +98,14 @@ test('the campaign has five themed worlds with five authored routes apiece', () 
   assert.equal(saveCampaignProgress(storage, 4, 4), 5);
   assert.equal(saveCampaignProgress(storage, 24, 24), 24);
 });
+
+test('each world uses a 640 by 128 PNG atlas with five tiles', () => {
+  assert.equal(new Set(ferroSurfaces.map(surface => surface.atlas)).size, 5);
+  for (const { atlas } of ferroSurfaces) {
+    const bytes = readFileSync(new URL('../' + atlas.slice(2), import.meta.url));
+    assert.equal(bytes.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+    assert.equal(bytes.readUInt32BE(16), 640);
+    assert.equal(bytes.readUInt32BE(20), 128);
+    assert.ok(html.includes('loadSurfaceTextures();'));
+  }
+});

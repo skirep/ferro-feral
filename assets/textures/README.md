@@ -1,0 +1,20 @@
+# Textures de l’escenari
+
+Cada món té un PNG de 640 × 128 píxels. Les cinc rajoles de 128 × 128
+van d’esquerra a dreta en aquest ordre:
+
+| Columna | Ús |
+|---|---|
+| 1 | Paret, variant 1 |
+| 2 | Paret, variant 2 |
+| 3 | Paret, variant 3 |
+| 4 | Terra |
+| 5 | Sostre |
+
+Edita o substitueix el PNG amb qualsevol editor d’imatges i mantén les
+dimensions i l’ordre de les rajoles. El cel, la llum i els colors de reserva
+s’editen a `world-materials.js`, on també pots canviar el nom del PNG.
+El navegador aplica la il·luminació a les rajoles mentre es juga.
+
+Els nivells són a `../levels/`, els enemics i les armes a `../combat.js`
+i els motius musicals a `../music.js`.
