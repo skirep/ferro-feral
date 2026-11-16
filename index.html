@@ -41,7 +41,7 @@
 <script src="./account.js"></script>
 <script src="./supabase-config.js"></script>
 <script src="./assets/enemies/catalog.js"></script>
-<script src="./assets/enemies/sprites.js?v=directional1"></script>
+<script src="./assets/enemies/sprites.js?v=directional2"></script>
 <script src="./assets/combat.js"></script>
 <script src="./assets/music.js"></script>
 <script>
@@ -59,6 +59,9 @@ const blood=[];
 const bloodColors=['#6a101d','#a0192b','#db2837','#ff514a'];
 let state='menu',time=0,elapsed=0,roomDistance;
 let audio, music, fx, step=0, nextBeat=0, muted=false;
+function nextEnemyLevel(index){
+ return levels[index].stage<4?levels[index+1]:null;
+}
 function level(index){
  n=index;
  ferroEnemySprites.clear();
@@ -744,9 +747,26 @@ function completeLevel(){
   playVictory();
   $('intro').textContent+=' '+points+' punts'+(record?' · Nou rècord':'.');
  }else{
-  level(n+1);
-  pickupNotice=points+' punts'+(record?' · Nou rècord':'');
-  pickupTime=4;
+  const advance=()=>{
+   level(n+1);
+   pickupNotice=points+' punts'+(record?' · Nou rècord':'');
+   pickupTime=4;
+  };
+  if(ferroEnemySprites.ready(levels[n+1])){
+   advance();
+   ferroEnemySprites.prepare(levels[n],nextEnemyLevel(n)).catch(()=>{});
+  }else{
+   state='loading';
+   ferroEnemySprites.prepare(levels[n+1],nextEnemyLevel(n+1)).then(()=>{
+    advance();
+    state='playing';
+   },()=>{
+    checkpoint=null;
+    end(false);
+    $('start').dataset.level=n+1;
+    $('intro').textContent='No s’han pogut carregar els sprites del nivell següent. Torna a provar-ho.';
+   });
+  }
  }
 }
 $('start').dataset.level=worldProgress[0];
@@ -913,13 +933,12 @@ $('start').onclick=e=>{
   if(activeAccount!==sessionAccount)activateAccount(sessionAccount);
   const requested=unlockedLevel(Number($('start').dataset.level));
   const selected=levelAvailable(worldProgress,requested)?requested:worldProgress[0];
-  const theme=levels[selected].theme;
-  if(!ferroEnemySprites.ready(theme)){
+  if(!ferroEnemySprites.ready(levels[selected])){
    const start=$('start'),label=start.textContent;
    loadingEnemyArt=true;
    start.disabled=true;
    start.textContent='Carregant els sprites…';
-   ferroEnemySprites.prepare(theme).then(()=>{
+   ferroEnemySprites.prepare(levels[selected],nextEnemyLevel(selected)).then(()=>{
     loadingEnemyArt=false;
     start.disabled=false;
     start.textContent=label;
@@ -935,6 +954,7 @@ $('start').onclick=e=>{
   owned.clear();
   for(let id=0;id<=selected&&id<5;id++)owned.add(id);
   level(selected);
+  ferroEnemySprites.prepare(levels[n],nextEnemyLevel(n)).catch(()=>{});
  }
  accountButton.disabled=false;
  state='playing';$('menu').hidden=true;document.body.classList.add('playing');initAudio();
@@ -1039,7 +1059,7 @@ for(const event of ['pointerup','pointercancel','lostpointercapture']){
 document.addEventListener('mousemove',e=>{if(state==='playing'&&document.pointerLockElement===screen)p.a+=e.movementX*.003});
 prepareWeapon();
 loadSurfaceTextures();
-ferroEnemySprites.prepare(0).then(()=>{redraw=true}).catch(()=>{});
+ferroEnemySprites.prepare(levels[0],nextEnemyLevel(0)).then(()=>{redraw=true}).catch(()=>{});
 level(0);let last=0;
 let padMoveX=0,padMoveY=0,padTurn=0,padFire=false;
 let padButtonMask=0,padIndex=-1;
