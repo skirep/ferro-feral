@@ -1,12 +1,3 @@
-// Enemy entries: name, effect color, AI archetype, hit points. IDs follow sprite order.
-const types=[
- ['Corc de coure','#df965e','runner',24],['Càntir cec','#9cd460','spitter',33],
- ['Guillotina','#dc6961','charger',49],['Fum de sutge','#aa95da','ghost',26],
- ['Monja de sal','#eae4bc','sniper',38],['Cranc de caldera','#ed9634','tank',78],
- ['Bessó invertit','#63d0df','strafer',38],['Niu de claus','#d77ab0','burst',47],
- ['Custodi de vidre','#89b3fb','guard',70],['Cor de la foneria','#ff5641','boss',240]
-];
-
 // Weapon damage, cadence in seconds, ammo cost and spread.
 const guns=[
  {name:'Martell d’Arc',damage:24,rate:.28,cost:0,color:'#75eaf1',spread:.055,range:12,targets:1,sound:188},
