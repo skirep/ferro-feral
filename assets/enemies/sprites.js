@@ -33,7 +33,9 @@ const ferroEnemySprites = (() => {
    [6,581,180,179],[204,580,168,180],[390,581,180,179],[586,580,171,180],[774,585,180,175]
   ]]
  ];
- const foot=177;
+ const foot=177, motionFrames=6, motionColumns=12;
+ const motionPoses=['walk','jump','shoot'];
+ const directionWidths=[1,.93,.80,.91,.96,.91,.80,.93];
 
  function canvas(width,height=width){
   const image=document.createElement('canvas');
@@ -42,91 +44,101 @@ const ferroEnemySprites = (() => {
   return image;
  }
 
- function load(theme){
-  if(worlds.has(theme))return worlds.get(theme);
-  const [file,rects]=atlases[theme];
-  const atlas=new Image();
-  const task=new Promise((resolve,reject)=>{
-   atlas.onload=()=>{
-    try{
-     const sprites=rects.map(([x,y,w,h])=>{
-      if(x+w>atlas.naturalWidth||y+h>atlas.naturalHeight)throw new Error('Invalid enemy atlas dimensions');
-      return {image:atlas,x,y,w,h};
-     });
-     resolve(sprites);
-    }catch(error){reject(error)}
-   };
+ function image(file){
+  return new Promise((resolve,reject)=>{
+   const atlas=new Image();
+   atlas.onload=()=>resolve(atlas);
    atlas.onerror=()=>reject(new Error('Cannot load enemy atlas '+file));
    atlas.src='./assets/enemies/'+file;
   });
+ }
+
+ // Keep only the active and most recently loaded campaign world decoded.
+ function prepare(theme){
+  if(loaded.has(theme)){
+   const entry=loaded.get(theme);
+   loaded.delete(theme);
+   loaded.set(theme,entry);
+   return Promise.resolve();
+  }
+  if(worlds.has(theme))return worlds.get(theme);
+  const [file,rects]=atlases[theme], prefix=file.replace('-sprites.png','');
+  const task=Promise.all([
+   image(file),...motionPoses.map(pose=>image(prefix+'-'+pose+'.png'))
+  ]).then(([base,...sheets])=>{
+   const sprites=rects.map(([x,y,w,h])=>{
+    if(x+w>base.naturalWidth||y+h>base.naturalHeight)throw new Error('Invalid enemy atlas dimensions');
+    return {image:base,x,y,w,h};
+   });
+   for(const sheet of sheets){
+    if(sheet.naturalWidth!==motionColumns*size||sheet.naturalHeight!==10*size)throw new Error('Invalid motion atlas dimensions');
+   }
+   loaded.set(theme,{sprites,sheets});
+   if(loaded.size>2)loaded.delete(loaded.keys().next().value);
+  }).finally(()=>worlds.delete(theme));
   worlds.set(theme,task);
-  task.catch(()=>{if(worlds.get(theme)===task)worlds.delete(theme)});
   return task;
+ }
+
+ function motionFrame(sheet,type,view,frame){
+  const image=canvas(size),ctx=image.getContext('2d');
+  const index=type.slot*motionFrames+Math.floor(frame*motionFrames/12);
+  const x=(index%motionColumns)*size,y=Math.floor(index/motionColumns)*size;
+  const turn=directionWidths[view];
+  ctx.translate(size/2,0);
+  ctx.scale(view>4?-turn:turn,1);
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(sheet,x,y,size,size,-size/2,0,size,size);
+  ctx.resetTransform();
+  shade(ctx,view,0);
+  return image;
+ }
+
+ function shade(ctx,view,hit){
+  if(view!==3&&view!==4&&view!==5&&!hit)return;
+  ctx.globalCompositeOperation='source-atop';
+  ctx.fillStyle=hit?'rgba(255,107,91,'+(hit*.26)+')':view===4?'#09132145':'#09132125';
+  ctx.fillRect(0,0,size,size);
  }
 
  function draw(source,type,view,pose,frame){
   const image=canvas(size),ctx=image.getContext('2d');
-  const t=frame/11, arc=Math.sin(Math.PI*t), phase=frame*Math.PI/6;
-  const stride=pose==='run'?1:pose==='walk'?.62:0;
-  const jump=pose==='jump'?arc:0, shot=pose==='shoot'?arc:0, hit=pose==='hit'?arc:0;
+  const t=frame/11,phase=frame*Math.PI/6;
+  const hit=pose==='hit'?Math.sin(Math.PI*t):0;
   const fall=pose==='death'?Math.sin(t*Math.PI/2):0;
   const aerial=['wraith','winged','pillar'].includes(type.body);
-  const height=Math.min(151,150*source.h/source.w);
-  const width=height*source.w/source.h;
-  const turn=[1,.93,.80,.91,.96,.91,.80,.93][view];
-  const bob=(aerial?Math.sin(phase)*4:Math.abs(Math.sin(phase))*stride*4)+jump*9;
+  const height=Math.min(151,149*source.h/source.w),width=height*source.w/source.h;
+  const turn=directionWidths[view],bob=aerial&&!fall?Math.sin(phase)*4:0;
   ctx.imageSmoothingEnabled=false;
   ctx.translate(size/2,foot-bob);
   ctx.scale(view>4?-turn:turn,1);
   if(fall){
-   // Rotate around the inner edge of the body, then settle the silhouette at floor level.
    const side=type.slot%2?1:-1;
-   ctx.translate(side*(28*fall),0);
+   ctx.translate(side*28*fall,0);
    ctx.rotate(-side*fall*1.47);
    ctx.scale(1-.15*fall,1-.58*fall);
   }else{
-   ctx.transform(1,0,Math.sin(phase)*stride*.055+shot*.15-hit*.12,1,0,0);
-   ctx.scale(1+shot*.035+hit*.06,1-jump*.07+shot*.04-hit*.10+Math.sin(phase)*.012);
+   ctx.transform(1,0,-hit*.12,1,0,0);
+   ctx.scale(1+hit*.06,1-hit*.10+Math.sin(phase)*.012);
   }
-  if(stride&&!fall&&!aerial){
-   const split=Math.round(source.h*.68), lower=source.h-split;
-   const hipY=-height*lower/source.h;
-   const step=Math.sin(phase)*stride*width*.10;
-   ctx.drawImage(source.image,source.x,source.y,source.w,split,-width/2,-height,width,height+hipY+.6);
-   const left=Math.floor(source.w/2);
-   for(const side of [-1,1]){
-    const start=side<0?0:left,end=side<0?left:source.w;
-    const legX=-width/2+start*width/source.w,legW=(end-start)*width/source.w;
-    ctx.save();
-    ctx.translate(0,hipY);
-    ctx.transform(1,0,step*side/-hipY,1,0,0);
-    ctx.drawImage(source.image,source.x+start,source.y+split,end-start,lower,legX,0,legW,-hipY);
-    ctx.restore();
-   }
-  }else{
-   ctx.drawImage(source.image,source.x,source.y,source.w,source.h,-width/2,-height,width,height);
-  }
+  ctx.drawImage(source.image,source.x,source.y,source.w,source.h,-width/2,-height,width,height);
   ctx.resetTransform();
-  if(view===3||view===4||view===5||hit){
-   ctx.globalCompositeOperation='source-atop';
-   ctx.fillStyle=hit?'rgba(255,107,91,'+(hit*.26)+')':view===4?'#09132145':'#09132125';
-   ctx.fillRect(0,0,size,size);
-  }
+  shade(ctx,view,hit);
   return image;
  }
 
  const loaded=new Map();
  return {
-  prepare(theme){
-   return load(theme).then(sprites=>{loaded.set(theme,sprites)});
-  },
+  prepare,
   ready(theme){return loaded.has(theme)},
   clear(){frames.clear()},
   get(type,view,pose,frame){
-   const source=loaded.get(type.theme)?.[type.slot];
-   if(!source)return null;
-   const key=type.id+':'+view+':'+pose+':'+frame;
-   const image=frames.get(key)??draw(source,type,view,pose,frame);
+   const entry=loaded.get(type.theme);
+   if(!entry)return null;
+   const motion=pose==='run'?'walk':pose;
+   const sheet=entry.sheets[motionPoses.indexOf(motion)];
+   const key=type.id+':'+view+':'+(sheet?motion:pose)+':'+(sheet?Math.floor(frame/2):frame);
+   const image=frames.get(key)??(sheet?motionFrame(sheet,type,view,frame):draw(entry.sprites[type.slot],type,view,pose,frame));
    frames.delete(key);
    frames.set(key,image);
    if(frames.size>192)frames.delete(frames.keys().next().value);

@@ -41,7 +41,7 @@
 <script src="./account.js"></script>
 <script src="./supabase-config.js"></script>
 <script src="./assets/enemies/catalog.js"></script>
-<script src="./assets/enemies/sprites.js?v=illustrated1"></script>
+<script src="./assets/enemies/sprites.js?v=animated1"></script>
 <script src="./assets/combat.js"></script>
 <script src="./assets/music.js"></script>
 <script>
@@ -753,7 +753,6 @@ $('start').dataset.level=worldProgress[0];
 if(worldProgress[0]>0)$('start').textContent='Continua la campanya';
 
 function showCampaign(worldIndex=levels[n].theme){
- ferroEnemySprites.prepare(worldIndex).catch(()=>{});
  $('campaignName').textContent=campaign.name;
  const select=$('worldSelect');
  select.replaceChildren(...worlds.map((world,index)=>{
