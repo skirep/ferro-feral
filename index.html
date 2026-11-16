@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 <title>Ferro Feral — Dejoco Arts</title>
+<meta name="description" content="FPS retro de Dejoco Arts amb tres nivells a diferents alçades.">
 <style>
 *{box-sizing:border-box}body{margin:0;background:#100c13;color:#fff0d0;font:16px monospace;overflow:hidden;touch-action:none}canvas{width:100vw;height:100dvh;object-fit:contain;image-rendering:pixelated;display:block}#menu{position:fixed;inset:0;display:grid;place-content:center;padding:24px;background:linear-gradient(90deg,#130c16ee,#35192166)}#menu[hidden]{display:none}h1{font-size:clamp(48px,11vw,144px);line-height:.8;margin:16px 0;color:#ff613f;text-shadow:4px 5px #5c211e;letter-spacing:-.09em}p{max-width:48ch;line-height:1.5}button{background:#ff6847;color:#160e17;border:0;padding:14px 20px;font:bold 16px monospace;cursor:pointer}#touch{display:none;position:fixed;inset:auto 12px 12px;justify-content:space-between;pointer-events:none}#touch button{pointer-events:auto;background:#251726c9;color:#fff0d0;padding:12px}body.playing #touch{display:flex}@media(pointer:fine){body.playing #touch{display:none}}#mute{position:fixed;right:10px;top:10px;padding:8px;background:#21141c;color:#fff0d0}
 </style>
@@ -32,75 +33,160 @@ const levels=[
  ['El cor de ferro','#8e4667','#321a2a',[[5,3,1,4],[11,3,1,4],[3,9,4,1],[10,9,5,1],[8,12,1,2]],[[4,6,7],[13,6,8],[8,5,6],[5,12,8],[13,13,7],[8,15,9]]]
 ];
 const keys=new Set();
-let n=0,grid,foes,shots,items,p,weapon,heat,flash,hurt,state='menu',time=0,elapsed=0;
+let n=0,grid,heights,foes,shots,items,p,weapon,heat,flash,hurt,state='menu',time=0,elapsed=0;
 let audio, music, fx, step=0, nextBeat=0, muted=false;
 function level(index){
  n=index; grid=Array.from({length:17},(_,y)=>Array.from({length:17},(_,x)=>+(x===0||y===0||x===16||y===16)));
  for(const [x,y,w,h] of levels[n][3])for(let j=y;j<y+h;j++)for(let i=x;i<x+w;i++)grid[j][i]=1;
+ heights=grid.map((row,y)=>row.map((_,x)=>{
+  if(n===0)return x>=9?[0,.2,.4,.6,.8][Math.min(4,x-9)]:0;
+  if(n===1)return y>=7?-Math.min(1.2,(y-7)*.24):0;
+  return y>=10?Math.min(1.5,(y-10)*.25):0;
+ }));
  foes=levels[n][4].map(([x,y,id],i)=>({x:x+.5,y:y+.5,id,hp:types[id][3],phase:i*.71,reload:1+i*.1,hit:0,dead:0,wind:0}));
- p={x:2.5,y:2.5,a:.2,hp:100,ammo:14}; shots=[]; heat=flash=hurt=0;
+ p={x:2.5,y:2.5,a:.2,z:0,hp:100,ammo:14}; shots=[]; heat=flash=hurt=0;
  items=[[2.5,13.5,'hp'],[14.5,3.5,'ammo'],[7.5,11.5,'ammo'],[15.5,13.5,'hp'],[15.5,15.5,'exit']].filter(i=>!wall(i[0],i[1]));
  weapon=n; step=0;
 }
 const wall=(x,y)=>grid[Math.floor(y)]?.[Math.floor(x)]!==0;
+const floor=(x,y)=>heights[Math.floor(y)]?.[Math.floor(x)]??0;
 const angle=a=>Math.atan2(Math.sin(a),Math.cos(a));
 function move(o,x,y,r){
  if(!wall(o.x+x+r,o.y+r)&&!wall(o.x+x-r,o.y+r)&&!wall(o.x+x+r,o.y-r)&&!wall(o.x+x-r,o.y-r))o.x+=x;
  if(!wall(o.x+r,o.y+y+r)&&!wall(o.x-r,o.y+y+r)&&!wall(o.x+r,o.y+y-r)&&!wall(o.x-r,o.y+y-r))o.y+=y;
 }
-function ray(x,y,dx,dy){
+function ray(x,y,dx,dy,startZ,endZ,distance){
  let ix=Math.floor(x),iy=Math.floor(y);
  const sx=Math.sign(dx),sy=Math.sign(dy),ax=Math.abs(1/dx),ay=Math.abs(1/dy);
- let tx=(dx<0?x-ix:ix+1-x)*ax,ty=(dy<0?y-iy:iy+1-y)*ay;
+ let tx=sx===0?Infinity:(dx<0?x-ix:ix+1-x)*ax;
+ let ty=sy===0?Infinity:(dy<0?y-iy:iy+1-y)*ay;
  for(let i=0;i<36;i++){
   const side=ty<tx,d=side?ty:tx;
   if(side){iy+=sy;ty+=ay}else{ix+=sx;tx+=ax}
-  if(grid[iy]?.[ix]!==0){const u=side?x+dx*d:y+dy*d;return [d,u-Math.floor(u),side]}
+  if(d>=distance)return true;
+  const rayZ=startZ+(endZ-startZ)*d/distance;
+  if(grid[iy]?.[ix]!==0||rayZ<=heights[iy][ix])return false;
  }
- return [40,0,0];
+ return false;
 }
 function sprite(id,pose,frame){
- const c=document.createElement('canvas');c.width=c.height=64;
+ const c=document.createElement('canvas');c.width=c.height=80;
  const g=c.getContext('2d'),color=types[id][1];
- const box=(x,y,w,h,fill)=>{g.fillStyle=fill;g.fillRect(Math.round(x),Math.round(y),w,h)};
- const poly=(fill,points)=>{g.fillStyle=fill;g.beginPath();points.forEach(([x,y],i)=>i?g.lineTo(x,y):g.moveTo(x,y));g.closePath();g.fill()};
- const t=frame/12*Math.PI*2,s=Math.sin(t),a=pose==='attack'?Math.sin(frame/11*Math.PI):0;
- const bob=pose==='walk'?Math.abs(s)*3:Math.sin(t)*2;
- const wide=[12,13,11,11,9,19,12,16,15,21][id];
- if(pose==='death'){
-  g.translate(0,frame*3.7);g.scale(1,1-frame*.069);
- }
- const y=27+bob, leg=pose==='walk'?s*8:Math.sin(t)*2;
- if([3,6].includes(id)){
-  for(let j=0;j<7;j++)box(15+j*5,y+16+Math.sin(t+j)*4,5,9+j%3*3,'#493653');
- }else{
-  for(const d of [-1,1]){
-   const foot=32+d*(wide*.65+leg*.45);
-   poly('#261b2b',[[32+d*4,y+7],[32+d*wide,y+8],[foot+d*5,53+d*leg],[foot+d*8,59+d*leg],[foot-d*4,59+d*leg]]);
-   box(foot-3,48+d*leg,6,5,color);
+ const cycle=frame/12*Math.PI*2;
+ const stride=pose==='walk'?Math.sin(cycle)*7:0;
+ const charge=pose==='attack'?Math.sin(frame/11*Math.PI):0;
+ const bob=pose==='walk'?-Math.abs(Math.sin(cycle))*3:Math.sin(cycle)*1.5;
+ const outline='#1d1423', shadow='#4c3040', light='#ffedb9';
+ const poly=(fill,coords)=>{
+  g.fillStyle=fill;g.beginPath();
+  for(let i=0;i<coords.length;i+=2){
+   const x=Math.round(coords[i]),y=Math.round(coords[i+1]);
+   if(i===0)g.moveTo(x,y);else g.lineTo(x,y);
   }
+  g.closePath();g.fill();
+ };
+ const plate=(coords)=>{
+  g.strokeStyle=outline;g.lineWidth=4;g.lineJoin='bevel';
+  poly(color,coords);g.stroke();
+ };
+ const rect=(x,y,w,h,fill)=>{g.fillStyle=fill;g.fillRect(Math.round(x),Math.round(y),w,h)};
+ const eye=(x,y,w=5)=>{rect(x-2,y-2,w+4,6,outline);rect(x,y,w,2,charge>.65?'#fff':light)};
+ const limb=(x,y,ex,ey,w=5)=>{
+  plate([x-w,y,x+w,y,ex+w,ey-3,ex+w,ey+2,ex-w-2,ey+2]);
+  rect(ex-w,ey-3,w*2,2,shadow);
+ };
+ g.translate(0,bob);
+ if(pose==='death'){
+  g.translate(40,76);g.rotate(frame*.048);g.scale(1+frame*.012,1-frame*.075);g.translate(-40,-76);
  }
- poly('#201727',[[32-wide-3,y-9],[32+wide+3,y-9],[32+wide+4,y+13],[32,y+22],[32-wide-4,y+13]]);
- poly(color,[[32-wide,y-7],[32+wide,y-7],[32+wide-2,y+9],[32,y+17],[32-wide+2,y+9]]);
- poly('#583447',[[32-wide,y+2],[32+wide,y+2],[32+wide-2,y+10],[32,y+17],[32-wide+2,y+10]]);
- for(const d of [-1,1]){
-  const hx=32+d*(wide+4+a*7),hy=y+10+d*leg-a*15;
-  poly('#2b1c2b',[[32+d*(wide-3),y-5],[32+d*(wide+3),y-4],[hx+d*5,hy],[hx,hy+8],[hx-d*4,hy]]);
-  box(hx-3,hy-3,7,6,color);
+ switch(id){
+  case 0:
+   for(let i=0;i<4;i++)for(const d of [-1,1])limb(40+d*(10+i),40+i*5,40+d*(30-i*3),53+i*5+stride*d*(-1)**i,2);
+   plate([20,51,25,34,34,26,45,27,57,39,58,54,46,65,32,64]);
+   for(let y=35;y<58;y+=6)poly(shadow,[28,y,51,y-2,55,y+1,31,y+5]);
+   plate([30,54,38,51,49,54,53+charge*8,62,46,69,38,63,30,69,26-charge*8,63]);eye(35,55,11);
+   break;
+  case 1:
+   limb(32,53,25,72+stride);limb(49,53,54,72-stride);
+   plate([23,21,49,17,61,30,60,52,51,65,25,61,16,46,16,32]);
+   poly(shadow,[53,25,59,34,57,53,48,64,41,61,49,48]);
+   for(let i=0;i<4;i++)rect(24+i*5,28-i*2,3,13,light);
+   plate([15,39,27,35,40+charge*12,39,42+charge*12,48,25,52,14,48]);eye(34+charge*12,44,5);
+   break;
+  case 2:
+   limb(34,49,20+stride,73,5);limb(45,48,58-stride,73,6);
+   plate([24,25,51,22,56,35,48,57,33,59,21,41]);
+   plate([28,16,44,11,51,24,43,33,28,29]);eye(35,23,10);
+   plate([51,39,53,22-charge*12,70,10-charge*8,71,33,62,54,53,60,49,48]);
+   poly(light,[67,17-charge*8,69,31,61,48,57,51,63,34]);
+   break;
+  case 3:
+   for(let i=0;i<6;i++){
+    const x=21+i*7,dy=Math.sin(cycle+i)*6;
+    poly(i%2?shadow:'#785d9e',[x,34,x+12,40,x+7,66+dy,x-3,57+dy]);
+   }
+   plate([17,37,23,22,36,11,51,15,61,28,60,45,49,53,33,47,20,53]);
+   poly(shadow,[27,37,34,23,47,21,54,32,49,45,33,45]);eye(32,35,4);eye(45,33,4);
+   rect(37,42,8,2+charge*8,light);
+   break;
+  case 4:
+   plate([32,27,44,23,52,39,61+stride,74,17+stride,74,27,43]);
+   poly(shadow,[43,35,49,42,55+stride,72,43,67,37,71]);
+   plate([31,10,45,9,52,25,44,38,32,34,26,23]);eye(36,23,9);
+   plate([30,41,36,39,68+charge*6,36,69+charge*6,43,37,51,29,48]);
+   rect(53,38,12,2,light);
+   break;
+  case 5:
+   for(const d of [-1,1])for(let i=0;i<3;i++)limb(40+d*12,51+i*3,40+d*(29-i*6),67+i*3+stride*d,3);
+   plate([15,43,22,29,35,23,54,25,64,36,65,52,52,63,28,64,15,53]);
+   for(let i=0;i<5;i++)rect(24+i*7,41,4,12,shadow);
+   for(const d of [-1,1]){
+    const x=40+d*(24+charge*7);
+    plate([x-8,40,x-10,29,x-6,20,x,32,x+6,21,x+10,29,x+7,43]);
+   }
+   eye(34,35,12);
+   break;
+  case 6:
+   for(const d of [-1,1]){
+    limb(40,41,40+d*(24+stride),30,3);
+    limb(40,42,40+d*(22-stride),60,3);
+   }
+   plate([40,9,55,33,59,46,40,72,22,46,25,34]);
+   poly(shadow,[40,11,40,43,55,46,40,69,48,43]);
+   eye(34,31,12);eye(34,53-charge*7,12);
+   break;
+  case 7:
+   limb(29,53,24,73+stride);limb(50,53,57,73-stride);
+   plate([18,31,27,20,47,18,61,29,64,51,53,62,27,65,16,52]);
+   for(let i=0;i<9;i++){
+    const x=20+i*5,y=25+((i*17)%12);
+    plate([x,y+13,x-2,y,x+2,y-9-charge*5,x+5,y+1,x+5,y+13]);
+    rect(x,y,2,5,light);
+   }
+   eye(26,52,6);eye(45,52,6);
+   break;
+  case 8:
+   limb(32,53,27,73+stride,6);limb(46,52,53,72-stride,6);
+   plate([23,26,49,22,55,38,52,55,34,63,20,49]);
+   plate([31,11,45,13,48,28,38,35,29,28]);eye(33,23,12);
+   g.translate(charge*12,0);
+   plate([42,23,67,20,71,31,67,60,55,73,41,57,38,36]);
+   poly('#44778f',[66,24,55,48,66,56,55,70,48,56,53,48,42,35]);
+   poly('#d9fcff',[42,34,47,26,64,25,53,29,47,43]);
+   break;
+  case 9:
+   for(let i=0;i<4;i++)for(const d of [-1,1]){
+    const y=36+i*7,x=40+d*(31-i*2);
+    limb(40+d*10,y,x,y-10+Math.sin(cycle+i)*6,3);
+    rect(x-3,y-10+Math.sin(cycle+i)*6,6,3,light);
+   }
+   plate([11,34,24,24,28,12,37,18,46,9,53,20,65,24,70,45,63,61,42,75,21,64,13,50]);
+   poly(shadow,[20,33,32,24,48,21,60,31,62,47,52,58,41,67,27,55,19,47]);
+   plate([40,25-charge*3,52,32,58,44,49,55,40,64,28,51,24,37]);
+   poly(light,[39,30,47,35,49,44,40,54,33,45,32,36]);
+   eye(35,41,10);
+   break;
  }
- if([0,2,5,7,9].includes(id))for(let j=0;j<(id===9?5:3);j++){
-  const x=21+j*(id===9?5:10);
-  poly(color,[[x-3,y-11],[x+Math.sin(t+j)*4,y-25+j%2*5],[x+4,y-11]]);
- }
- if(id===4)poly('#efe6cf',[[27,y-25],[36,y-25],[42,y+5],[22,y+5]]);
- if(id===8)poly('#c6e1ff',[[42,y-14],[57,y-8],[56,y+18],[44,y+25],[40,y+10]]);
- if(id===5)for(let j=0;j<3;j++)box(17+j*13,y-11,5,8,'#fee2a4');
- if(id===7)for(let j=0;j<5;j++)box(16+j*7,y+8+j%2*3,3,7,'#ffd4cb');
- box(23,y-15,18,13,'#2c1e30');box(25,y-14,14,4,color);
- if(id===1||id===4||id===9)box(29,y-8,7,4,a>.6?'#fff9cc':'#ff725b');
- else for(const x of [26,35])box(x,y-8,3,3,a>.6?'#ffffff':'#fff4bb');
- for(let j=0;j<5;j++)box(27+j*2,y+5+j%2,1,4,color);
- if(a>.72){box(29,y-10,7,7,'#ffc572');box(31,y-12,3,11,'#fff1a9')}
  return c;
 }
 const atlas=types.map((_,id)=>Object.fromEntries(['idle','walk','attack','death'].map(pose=>[pose,Array.from({length:12},(_,f)=>sprite(id,pose,f))])));
@@ -147,8 +233,8 @@ function fire(){
  p.ammo-=gun.cost;heat=gun.rate;flash=.105;
  if(audio)tone([188,116,77][weapon],.18,.7,'sawtooth',audio.currentTime,fx,29);
  const targets=foes.filter(e=>{
-  const dx=e.x-p.x,dy=e.y-p.y,d=Math.hypot(dx,dy);
-  return e.hp>0&&Math.abs(angle(Math.atan2(dy,dx)-p.a))<Math.atan2(.30,d)+gun.spread&&ray(p.x,p.y,dx/d,dy/d)[0]>=d;
+  const dx=e.x-p.x,dy=e.y-p.y,d=Math.hypot(dx,dy)||.001;
+  return e.hp>0&&Math.abs(angle(Math.atan2(dy,dx)-p.a))<Math.atan2(.30,d)+gun.spread&&ray(p.x,p.y,dx/d,dy/d,p.z+.5,floor(e.x,e.y)+.52,d);
  }).sort((a,b)=>Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y));
  targets.slice(0,weapon===1?3:1).forEach((e,i)=>{e.hp-=gun.damage/(i+1)*(e.id===8&&!e.wind?.55:1);e.hit=.17});
 }
@@ -159,11 +245,12 @@ function update(dt){
  const forward=+keys.has('w')+keys.has('arrowup')-keys.has('s')-keys.has('arrowdown'),strafe=+keys.has('d')-keys.has('a');
  const speed=dt*(keys.has('shift')?4.7:3.4)/Math.max(1,Math.hypot(forward,strafe));
  move(p,(Math.cos(p.a)*forward-Math.sin(p.a)*strafe)*speed,(Math.sin(p.a)*forward+Math.cos(p.a)*strafe)*speed,.19);
+ p.z+=(floor(p.x,p.y)-p.z)*Math.min(1,dt*13);
  if(forward||strafe)elapsed+=dt*10;
  heat-=dt;flash-=dt;hurt-=dt;if(keys.has(' '))fire();
  for(const e of foes){
   e.hit-=dt;if(e.hp<=0){e.dead+=dt;continue}
-  const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy)||.001,kind=types[e.id][2],see=ray(e.x,e.y,dx/d,dy/d)[0]>=d-.03;
+  const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy)||.001,kind=types[e.id][2],see=ray(e.x,e.y,dx/d,dy/d,floor(e.x,e.y)+.48,p.z+.44,d);
   const melee=kind==='runner'||kind==='charger'||kind==='ghost';
   const range=melee?.75:kind==='sniper'?11:6;
   e.reload-=dt;e.wind=Math.max(0,e.wind-dt);
@@ -172,7 +259,7 @@ function update(dt){
    if(melee)damage(kind==='charger'?21:12);
    else{
     const base=Math.atan2(dy,dx), offsets=kind==='boss'?[-.35,-.17,0,.17,.35]:kind==='burst'?[-.15,0,.15]:[0];
-    for(const offset of offsets)shots.push({x:e.x,y:e.y,a:base+offset,color:types[e.id][1],speed:kind==='sniper'?8:3.3,ttl:4});
+    for(const offset of offsets)shots.push({x:e.x,y:e.y,a:base+offset,altitude:floor(e.x,e.y)+.48,color:types[e.id][1],speed:kind==='sniper'?8:3.3,slope:(p.z+.44-floor(e.x,e.y)-.48)/d,ttl:4});
    }
   }
   e.walk=d<9&&(!see||d>(melee?.57:kind==='sniper'?7:3));
@@ -184,9 +271,9 @@ function update(dt){
   }
  }
  for(const s of shots){
-  s.ttl-=dt;s.x+=Math.cos(s.a)*dt*s.speed;s.y+=Math.sin(s.a)*dt*s.speed;
-  if(wall(s.x,s.y))s.ttl=0;
-  if(Math.hypot(p.x-s.x,p.y-s.y)<.28){damage(12);s.ttl=0}
+  s.ttl-=dt;s.x+=Math.cos(s.a)*dt*s.speed;s.y+=Math.sin(s.a)*dt*s.speed;s.altitude+=s.slope*dt*s.speed;
+  if(wall(s.x,s.y)||floor(s.x,s.y)>=s.altitude||s.altitude>=ceiling)s.ttl=0;
+  if(s.ttl>0&&Math.hypot(p.x-s.x,p.y-s.y)<.28&&Math.abs(p.z+.44-s.altitude)<.50){damage(12);s.ttl=0}
  }
  shots=shots.filter(s=>s.ttl>0);
  const clear=foes.every(e=>e.hp<=0);
@@ -199,28 +286,85 @@ function update(dt){
  if(p.hp<=0)end(false);
  else if(clear&&Math.hypot(p.x-15.5,p.y-15.5)<.55){if(n===2)end(true);else level(n+1)}
 }
-const depth=new Float32Array(W);
-function draw(){
- const [,wallColor,room]=levels[n];
- ctx.fillStyle=room;ctx.fillRect(0,0,W,H);
- for(let y=0;y<H;y+=4){
-  const d=Math.abs(H/2-y)/(H/2);
-  ctx.fillStyle='rgba(0,0,0,'+(1-d)*.6+')';ctx.fillRect(0,y,W,4);
-  if(y>H/2&&y%12===0){ctx.fillStyle='#ffffff0c';ctx.fillRect(0,y,W,1)}
- }
- const ca=Math.cos(p.a),sa=Math.sin(p.a),plane=.69;
- for(let x=0;x<W;x+=2){
-  const u=(2*x/W-1)*plane,[d,tex,side]=ray(p.x,p.y,ca-sa*u,sa+ca*u);
-  depth[x]=depth[x+1]=d;
-  const h=Math.min(3000,225/Math.max(.06,d)),top=(H-h)/2;
-  ctx.fillStyle=wallColor;ctx.fillRect(x,top,2,h);
-  ctx.fillStyle='rgba(0,0,0,'+Math.min(.87,.10+d*.053+side*.16+(tex<.045?.22:(Math.floor(tex*32)%3)*.028))+')';
-  ctx.fillRect(x,top,2,h);
-  for(const y of [.16,.29,.73,.79,.94]){
-   ctx.fillStyle=y===.79&&tex>.12&&tex<.88?'#ffc07688':'#140f19aa';
-   ctx.fillRect(x,top+h*y,2,Math.max(1,h*.012));
+const depth=new Float32Array(W*H);
+const frameBuffer=ctx.createImageData(W,H);
+const pixels=new Uint32Array(frameBuffer.data.buffer);
+const palettes=[
+ [[116,63,48],[59,47,51],[43,26,34],[255,130,64]],
+ [[49,93,98],[33,58,67],[26,42,53],[100,238,216]],
+ [[103,46,77],[60,36,57],[46,25,41],[247,93,136]]
+];
+const ceiling=2.95, horizon=H/2, focal=225;
+function shade(rgb,light){
+ const r=Math.min(255,rgb[0]*light)|0,g=Math.min(255,rgb[1]*light)|0,b=Math.min(255,rgb[2]*light)|0;
+ return (255<<24)|(b<<16)|(g<<8)|r;
+}
+function world(ca,sa,plane,eye){
+ const [wallInk,floorInk,roofInk,lamp]=palettes[n];
+ depth.fill(Infinity);
+ pixels.fill(shade(roofInk,.24));
+ for(let x=0;x<W;x++){
+  const u=(2*x/W-1)*plane,dx=ca-sa*u,dy=sa+ca*u;
+  let ix=Math.floor(p.x),iy=Math.floor(p.y),near=.004;
+  const ax=Math.abs(1/dx),ay=Math.abs(1/dy),sx=Math.sign(dx),sy=Math.sign(dy);
+  let tx=sx===0?Infinity:(sx<0?p.x-ix:ix+1-p.x)*ax;
+  let ty=sy===0?Infinity:(sy<0?p.y-iy:iy+1-p.y)*ay;
+  for(let cell=0;cell<36;cell++){
+   const side=ty<tx,d=Math.max(.004,Math.min(tx,ty));
+   const z=heights[iy][ix];
+   const face=(horizon+(eye-z)*focal/d);
+   const roof=horizon+(eye-ceiling)*focal/d;
+   const top=horizon+(eye-z)*focal/near;
+   const span=(from,to,planeZ,ink,isRoof)=>{
+    const start=Math.max(0,Math.ceil(from)),end=Math.min(H,Math.ceil(to));
+    for(let y=start;y<end;y++){
+     const dist=(eye-planeZ)*focal/(y-horizon);
+     const index=y*W+x;
+     if(dist<=0||dist>=depth[index])continue;
+     const wx=p.x+dx*dist,wy=p.y+dy*dist;
+     const j=Math.floor(wx*16),k=Math.floor(wy*16);
+     const seam=(j&15)===0||(k&15)===0;
+     const grain=((j*13^k*31)&7)*.024;
+     let light=(1.15+grain-(seam?.36:0))/(1+dist*.14);
+     if(isRoof&&(j&63)>6&&(j&63)<10&&(k&63)<41)pixels[index]=shade(lamp,light*1.4);
+     else pixels[index]=shade(ink,light);
+     depth[index]=dist;
+    }
+   };
+   span(Math.min(face,top),Math.max(face,top),z,floorInk,false);
+   span(horizon+(eye-ceiling)*focal/near,roof,ceiling,roofInk,true);
+   if(side){iy+=sy;ty+=ay}else{ix+=sx;tx+=ax}
+   const solid=grid[iy]?.[ix]!==0,next=heights[iy]?.[ix]??z;
+   if(solid||next!==z){
+    const edge=side?p.x+dx*d:p.y+dy*d;
+    const stripe=Math.floor((edge-Math.floor(edge))*64);
+    const high=solid?ceiling:Math.max(z,next),low=solid?z:Math.min(z,next);
+    const start=Math.max(0,Math.ceil(horizon+(eye-high)*focal/d));
+    const end=Math.min(H,Math.ceil(horizon+(eye-low)*focal/d));
+    for(let y=start;y<end;y++){
+     const index=y*W+x;
+     if(d>=depth[index])continue;
+     const altitude=eye-(y-horizon)*d/focal;
+     const row=Math.floor((altitude-low)*36),grain=((row*31^stripe*17)&7)*.025;
+     const metal=(row%24<2||stripe<2||stripe>61)?.59:1;
+     const rib=stripe%16<3?.79:1;
+     const luminous=solid&&row%38===30&&stripe>8&&stripe<54;
+     const hazard=!solid&&((stripe+row*2)&15)>8;
+     const illumination=(1.12+grain)/(1+d*.116)*(side?.79:1);
+     pixels[index]=shade(luminous||hazard?lamp:wallInk,illumination*(luminous?1.65:hazard?.58:metal*rib));
+     depth[index]=d;
+    }
+   }
+   if(solid)break;
+   near=d;
   }
  }
+ ctx.putImageData(frameBuffer,0,0);
+}
+function draw(){
+ const ca=Math.cos(p.a),sa=Math.sin(p.a),plane=.69;
+ const eye=p.z+.5+Math.sin(elapsed*2)*.018;
+ world(ca,sa,plane,eye);
  const scene=[];
  for(const e of foes){
   const pose=e.hp<=0?'death':e.wind>0?'attack':e.walk?'walk':'idle';
@@ -233,23 +377,59 @@ function draw(){
  scene.sort((a,b)=>b.z-a.z);
  for(const o of scene){
   if(o.z<.14)continue;
-  const w=Math.floor(225/o.z*o.size),left=Math.floor(W/2+W/2*o.l/(o.z*plane)-w/2),top=Math.floor(H/2+112.5/o.z-w-(o.offset||0)*225/o.z);
+  const w=Math.floor(focal/o.z*o.size);
+  const left=Math.floor(W/2+W/2*o.l/(o.z*plane)-w/2);
+  const altitude=o.altitude??floor(o.x,o.y)+(o.offset||0);
+  const top=Math.floor(horizon+(eye-altitude)*focal/o.z-w);
   if(w<1)continue;
   if(o.hit)ctx.filter='brightness(1.8)';
   for(let x=Math.max(left,0);x<Math.min(W,left+w);x++){
-   if(o.z>=depth[x])continue;
-   if(o.art)ctx.drawImage(o.art,Math.min(63,Math.floor((x-left)*64/w)),0,1,64,x,top,1,w);
-   else if(Math.abs(x-left-w/2)<w*.45){ctx.fillStyle=o.color;ctx.fillRect(x,top,1,w)}
+   const start=Math.max(0,top),end=Math.min(H,top+w);
+   let y=start;
+   while(y<end){
+    while(y<end&&o.z>=depth[y*W+x])y++;
+    const begin=y;
+    while(y<end&&o.z<depth[y*W+x])y++;
+    if(y===begin)continue;
+    if(o.art){
+     const size=o.art.width,sx=Math.min(size-1,Math.floor((x-left)*size/w));
+     ctx.drawImage(o.art,sx,(begin-top)*size/w,1,(y-begin)*size/w,x,begin,1,y-begin);
+    }else{
+     const radius=Math.abs(x-left-w/2)/(w/2);
+     const inset=w*.23*radius;
+     const from=Math.max(begin,top+inset),to=Math.min(y,top+w-inset);
+     if(from<to){ctx.fillStyle=o.color;ctx.fillRect(x,from,1,to-from)}
+    }
+   }
   }
   ctx.filter='none';
  }
  const gy=H-70+Math.sin(elapsed)*3+Math.max(0,flash)*210,gx=W/2+Math.cos(elapsed/2)*4;
- ctx.fillStyle='#251928';ctx.fillRect(gx-38,gy+25,76,52);
- ctx.fillStyle='#5b4353';ctx.fillRect(gx-24,gy+10,48,57);
- ctx.fillStyle='#9b7780';ctx.fillRect(gx-17,gy+7,34,12);
- ctx.fillStyle=guns[weapon].color;
- for(let i=0;i<=weapon;i++)ctx.fillRect(gx-12+i*10,gy+22,5,26);
- if(flash>0){ctx.fillStyle=guns[weapon].color;ctx.fillRect(gx-13,gy-18,26,24);ctx.fillStyle='#fff7c4';ctx.fillRect(gx-5,gy-26,10,35)}
+ const profile=(color,points)=>{
+  ctx.fillStyle=color;ctx.beginPath();
+  points.forEach(([x,y],i)=>i?ctx.lineTo(gx+x,gy+y):ctx.moveTo(gx+x,gy+y));
+  ctx.closePath();ctx.fill();
+ };
+ const wide=[25,41,34][weapon];
+ profile('#20131f',[[-wide-7,30],[-wide-1,15],[-wide,4],[-16,-6],[17,-6],[wide,4],[wide+6,30],[53,77],[-53,77]]);
+ profile('#675464',[[-wide,12],[-17,-3],[17,-3],[wide,12],[wide-4,46],[-wide+4,46]]);
+ profile('#9b8580',[[-wide,12],[-17,-3],[17,-3],[wide,12],[26,18],[-26,18]]);
+ profile('#302632',[[-26,18],[26,18],[32,45],[27,64],[-31,64],[-33,43]]);
+ const color=guns[weapon].color;
+ for(let i=0;i<weapon+2;i++){
+  const x=(i-(weapon+1)/2)*13;
+  ctx.fillStyle='#1d1625';ctx.fillRect(gx+x-5,gy+4,10,30);
+  ctx.fillStyle=color;ctx.fillRect(gx+x-3,gy+6,6,24);
+  ctx.fillStyle='#fff5db';ctx.fillRect(gx+x-2,gy+8,2,12);
+ }
+ profile('#4d3843',[[-50,62],[-37,37],[-28,40],[-30,60],[-12,78],[-51,78]]);
+ profile('#76545a',[[50,62],[35,38],[28,42],[31,58],[14,78],[52,78]]);
+ if(flash>0){
+  ctx.globalAlpha=Math.min(1,flash*14);
+  profile(color,[[-24,9],[-45,-20],[-15,-13],[-9,-45],[7,-25],[26,-50],[19,-11],[48,-22],[24,10]]);
+  profile('#fffae0',[[-11,4],[-18,-14],[-4,-9],[0,-28],[7,-12],[22,-14],[12,4]]);
+  ctx.globalAlpha=1;
+ }
  if(hurt>0){ctx.fillStyle='rgba(255,36,40,'+hurt*.7+')';ctx.fillRect(0,0,W,H)}
  ctx.fillStyle='#fff0d0';ctx.fillRect(W/2-1,H/2-1,2,2);
  ctx.fillStyle='#100b17';ctx.fillRect(0,H-28,W,28);
