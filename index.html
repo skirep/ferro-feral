@@ -115,9 +115,9 @@ function ray(x,y,dx,dy,startZ,endZ,distance){
  }
  return false;
 }
-const portraits=new Image(),turnarounds=new Image();
-const atlas=new Map();
-const floating=new Set([3,6,9]);
+const enemySheets=Array.from({length:types.length},()=>new Image());
+const weaponSheet=new Image();
+const enemyPoses=['idle','walk','run','jump','shoot','hit','death'];
 const jumpDuration=.76;
 function facingView(facing,bearing){
  return (Math.round(angle(bearing-facing)*4/Math.PI)+8)%8;
@@ -125,67 +125,25 @@ function facingView(facing,bearing){
 function hopHeight(e){
  return e.jump>0?.45*Math.sin(Math.PI*e.jump/jumpDuration):0;
 }
-function sprite(id,pose,frame,view){
- const key=(((id*8+view)*7+['idle','walk','run','jump','shoot','hit','death'].indexOf(pose))*12+frame);
- if(atlas.has(key))return atlas.get(key);
- if(atlas.size>=480)atlas.delete(atlas.keys().next().value);
- const c=document.createElement('canvas');c.width=c.height=128;
- const g=c.getContext('2d');g.imageSmoothingEnabled=false;
- const t=frame/11,cycle=frame*Math.PI/6;
- const run=pose==='run',step=pose==='walk'||run,jump=pose==='jump';
- const shot=pose==='shoot',firing=shot&&frame>=6&&frame<=8;
- const die=pose==='death',hit=pose==='hit';
- const swing=Math.sin(cycle),lift=Math.sin(t*Math.PI);
- const recoil=firing?1-(frame-6)*.23:0;
- const side=view===0||view===4?0:view<4?1:-1;
- const directional=Math.min(view,8-view);
- const original=view===0&&(step||shot||pose==='idle'||hit||die||jump);
- const poseRow=step?(frame%6<2?0:frame<6?1:2):shot&&frame>=4&&frame<=9?3:0;
- const sx=id%5*112,sy=original?(Math.floor(id/5)+poseRow*2)*112:(Math.floor(id/5)*5+directional)*112;
- const art=original?portraits:turnarounds;
- const bob=step?-Math.abs(swing)*(run?7:4):floating.has(id)?swing*2:0;
- g.translate(64-side*recoil*6,119+bob);
- if(die){g.translate(8*t,0);g.rotate(t*.49)}
- if(hit){g.translate((side||1)*5*(1-t),0);g.rotate((side||1)*.15*(1-t))}
- if(view>=5)g.scale(-1,1);
- g.scale(1+(jump?.13*lift:0),die?1-.81*t:jump?1-.20*lift:1+recoil*.08);
- const stride=step?swing*(run?15:8):0;
- const lean=step&&run&&side?6:shot?5-recoil*10:0;
- for(let row=0;row<112;row++){
-  const body=Math.min(1,(112-row)/62);
-  const knee=Math.max(0,(row-63)/49);
-  const x=-56+Math.round(lean*body);
-  if((step||jump)&&row>=60&&!floating.has(id)){
-   const movement=jump?lift*6:stride;
-   g.drawImage(art,sx,sy+row,56,1,x+Math.round(movement*knee),row-112,56,1);
-   g.drawImage(art,sx+56,sy+row,56,1,x+56-Math.round(movement*knee),row-112,56,1);
-  }else{
-   g.drawImage(art,sx,sy+row,112,1,x,row-112,112,1);
-  }
- }
- if(firing&&view!==4){
-  const muzzle=side?39:12, y=id===0||id===5||id===7?-43:-67;
-  g.fillStyle=types[id][1];g.fillRect(muzzle-7,y-2,14,5);
-  g.fillRect(muzzle-2,y-7,5,15);
-  g.fillStyle='#fff9ca';g.fillRect(muzzle-2,y-2,6,5);
- }
- atlas.set(key,c);
- return c;
-}
 let enemiesReady=false;
 function prepareEnemies(){
  const button=$('start'),label=button.textContent;
- button.disabled=true;button.textContent='Preparant els enemics…';
- let remaining=2;
- const ready=()=>{if(--remaining===0){enemiesReady=true;button.disabled=false;button.textContent=label}};
- const failed=()=>{
-  button.textContent='Recarrega per tornar-ho a provar';
-  button.disabled=false;button.onclick=()=>location.reload();
- };
- portraits.onload=turnarounds.onload=ready;
- portraits.onerror=turnarounds.onerror=failed;
- portraits.src='./assets/enemies.webp?v=moviment';
- turnarounds.src='./assets/enemies-360.webp?v=1';
+ button.disabled=true;button.textContent='Carregant les animacions…';
+ const files=enemySheets.map((img,id)=>[img,'enemy-'+String(id+1).padStart(2,'0')+'.webp']);
+ files.push([weaponSheet,'weapons.webp']);
+ let remaining=files.length,failed=false;
+ for(const [img,file] of files){
+  img.onload=()=>{
+   if(--remaining!==0||failed)return;
+   enemiesReady=true;button.disabled=false;button.textContent=label;
+  };
+  img.onerror=()=>{
+   failed=true;
+   button.textContent='Recarrega per tornar-ho a provar';
+   button.disabled=false;button.onclick=()=>location.reload();
+  };
+  img.src='./assets/'+file+'?v=frames1';
+ }
 }
 function initAudio(){
  if(!audio){
@@ -299,8 +257,8 @@ function update(dt){
   e.walk=see?d<9&&d>(melee?.57:kind==='sniper'?7:3):pathLength>0&&pathLength<=10;
   if(e.wind>0||(kind==='boss'&&!see))e.walk=false;
   e.run=e.walk&&see&&d>2.8;
-  if(e.run&&d<6&&e.jumpWait<=0&&e.jump<=0){
-   e.jump=jumpDuration;e.jumpWait=6+e.phase%2.4;
+  if(e.run&&d>3.8&&d<5.2&&e.jumpWait<=0&&e.jump<=0&&(e.id+Math.round(e.phase*10))%3===0){
+   e.jump=jumpDuration;e.jumpWait=22+e.phase%4;
   }
   if(e.walk)e.travel+=dt*(e.run?19:12);
 
@@ -371,8 +329,10 @@ function addLight(x,y,radius,power,color){
  for(let j=minY;j<=maxY;j++)for(let i=minX;i<=maxX;i++){
   const dx=(i+.5)/4-x,dy=(j+.5)/4-y;
   const strength=Math.max(0,1-(dx*dx+dy*dy)/(radius*radius))**2*power;
+  if(strength<.002)continue;
+  const shadow=wall(x+dx*.52,y+dy*.52)?.14:1;
   const index=(j*lightSize+i)*3;
-  for(let channel=0;channel<3;channel++)lighting[index+channel]+=color[channel]*strength;
+  for(let channel=0;channel<3;channel++)lighting[index+channel]+=color[channel]*strength*shadow;
  }
 }
 function updateLights(core){
@@ -394,19 +354,42 @@ const wallMaterials=[
  [[76,117,123],[38,70,76],[94,154,146],[27,48,53]],
  [[112,68,87],[65,41,59],[163,72,94],[39,22,37]]
 ];
-function surfacePixel(u,v,solid){
- if(!solid)return ((u+v*2)&23)<10?2:3;
- const row=v&63;
- const bolt=(u<7||u>56)&&(row===5||row===55);
- if(bolt)return 2;
- if(u<2||u>61||row<3||row>60)return 3;
- if(row>21&&row<38){
-  if(n===0)return u%9<3?3:1;
-  if(n===1)return row%5<2?3:1;
-  return ((u+row)&15)<4?2:1;
+const wallTextures=wallMaterials.map((colors,chapter)=>{
+ const tiles=[];
+ for(let style=0;style<3;style++){
+  const texture=[];
+  for(let v=0;v<128;v++)for(let u=0;u<128;u++){
+   const row=v&63, col=u&63;
+   const grain=((u*13^v*61^(u*v))&31)/255;
+   const edge=Math.min(col,63-col,row,63-row);
+   const bolt=Math.min(Math.hypot(col-7,row-7),Math.hypot(col-56,row-7),Math.hypot(col-7,row-56),Math.hypot(col-56,row-56));
+   let ink=0,level=.90+grain;
+   if(edge<2){ink=3;level=.73}
+   else if(edge<4)level=col<32||row<32?1.22:.70;
+   if(bolt<3){ink=bolt<1.4?3:2;level=bolt<1.4?.64:1.15}
+   if(style===0&&row>19&&row<44){
+    const rib=(chapter===1?row:col)%8;
+    ink=rib<3?3:1;level=rib===3?1.30:.76+grain;
+   }
+   if(style===1&&col>20&&col<44){
+    const tube=(col-32)/12;
+    ink=row%24<4?2:1;level=.52+Math.max(0,1-tube*tube)*.78+grain;
+   }
+   if(style===2&&row>35&&row<47){
+    ink=((col+(row>>1))&15)>7?2:3;level=.8+grain;
+   }
+   if(edge>=4){
+    const scratch=((u*7+v*3+style*19)&127)===0;
+    const streak=((u*131+style*17)&31)<3&&row>13;
+    if(scratch)level+=.20;
+    if(streak)level*=.77;
+   }
+   texture.push(colors[ink].map(c=>Math.round(c*level)));
+  }
+  tiles.push(texture);
  }
- return (row===8||row===52)?2:0;
-}
+ return tiles;
+});
 function world(ca,sa,plane,eye){
  const [,floorInk,roofInk,lamp]=palettes[n];
  depth.fill(Infinity);
@@ -457,12 +440,14 @@ function world(ca,sa,plane,eye){
      const index=y*W+x;
      if(d>=depth[index])continue;
      const altitude=eye-(y-horizon)*d/focal;
-     const row=Math.floor(altitude*42),grain=((row*31^stripe*17)&15)*.013;
-     const material=surfacePixel(stripe,row,solid);
-     const luminous=solid&&(row&63)===42&&stripe>8&&stripe<54&&(ix+iy)%3===0;
-     const illumination=(1.15+grain)/(1+d*.108)*(side?.79:1);
+     const row=Math.floor(altitude*96)&127;
+     const style=((ix*19+iy*11)%3+3)%3;
+     const u=(stripe*2+(Math.floor((edge-Math.floor(edge))*128)&1))&127;
+     const luminous=solid&&(row&63)>=41&&(row&63)<=43&&u>21&&u<106&&style===2;
+     const illumination=1.12/(1+d*.106)*(side?.78:1);
      const faceLight=lightAt(p.x+dx*(d-.025),p.y+dy*(d-.025));
-     pixels[index]=lit(luminous?lamp:wallMaterials[n][material],illumination*(luminous?1.6:1),faceLight,material===3?.58:1);
+     const texture=solid?wallTextures[n][style][row*128+u]:wallMaterials[n][((u+row*2)&31)<12?2:3];
+     pixels[index]=lit(luminous?lamp:texture,illumination*(luminous?1.66:1),faceLight,.95);
      depth[index]=d;
     }
    }
@@ -543,7 +528,7 @@ function draw(){
   const elapsedFrame=pose==='death'?e.dead*21:pose==='shoot'?(1-e.wind/.54)*12:pose==='hit'?(1-e.hit/.17)*12:pose==='jump'?(1-e.jump/jumpDuration)*12:(pose==='idle'?time*9+e.phase*12:e.travel)%12;
   const frame=Math.max(0,Math.min(11,Math.floor(elapsedFrame)));
   const view=facingView(e.facing,Math.atan2(p.y-e.y,p.x-e.x));
-  scene.push({x:e.x,y:e.y,art:sprite(e.id,pose,frame,view),size:e.id===9?1.48:1,
+  scene.push({x:e.x,y:e.y,art:enemySheets[e.id],frameX:frame*80,frameY:(view*enemyPoses.length+enemyPoses.indexOf(pose))*80,frameSize:80,size:e.id===9?1.48:1,
    offset:e.hp>0?hopHeight(e):0,hit:e.hit>0,enemy:e.id});
 
  }
@@ -579,8 +564,8 @@ function draw(){
     while(y<end&&o.z<depth[y*W+x])y++;
     if(y===begin)continue;
     if(o.art){
-     const size=o.art.width,sx=Math.min(size-1,Math.floor((x-left)*size/w));
-     ctx.drawImage(o.art,sx,(begin-top)*size/w,1,(y-begin)*size/w,x,begin,1,y-begin);
+     const size=o.frameSize??o.art.width,sx=Math.min(size-1,Math.floor((x-left)*size/w));
+     ctx.drawImage(o.art,(o.frameX??0)+sx,(o.frameY??0)+(begin-top)*size/w,1,(y-begin)*size/w,x,begin,1,y-begin);
     }else{
      const radius=Math.abs(x-left-w/2)/(w/2);
      const inset=w*.23*radius;
@@ -594,42 +579,12 @@ function draw(){
  drawAtmosphere(ca,sa,plane,eye,core);
  ctx.save();
  ctx.scale(W/480,H/270);
- const reloadDip=weapon===1&&heat>.15&&heat<.76?Math.sin((heat-.15)/.61*Math.PI)*22:0;
- const gy=270-70+Math.sin(elapsed)*3+Math.max(0,flash)*210+reloadDip,gx=240+Math.cos(elapsed/2)*4;
- const profile=(color,points)=>{
-  ctx.fillStyle=color;ctx.beginPath();
-  points.forEach(([x,y],i)=>i?ctx.lineTo(gx+x,gy+y):ctx.moveTo(gx+x,gy+y));
-  ctx.closePath();ctx.fill();
- };
- const wide=[25,40,32,29,39][weapon];
- profile('#20131f',[[-wide-7,30],[-wide-1,15],[-wide,4],[-16,-6],[17,-6],[wide,4],[wide+6,30],[53,77],[-53,77]]);
- profile('#675464',[[-wide,12],[-17,-3],[17,-3],[wide,12],[wide-4,46],[-wide+4,46]]);
- profile('#9b8580',[[-wide,12],[-17,-3],[17,-3],[wide,12],[26,18],[-26,18]]);
- profile('#302632',[[-26,18],[26,18],[32,45],[27,64],[-31,64],[-33,43]]);
- const color=guns[weapon].color;
- if(weapon===1){
-  profile('#503023',[[-40,35],[-32,22],[32,22],[40,35],[29,64],[-29,64]]);
-  for(const side of [-1,1]){
-   const x=side*16;
-   profile('#27272b',[[x-13,26],[x-11,-13],[x+11,-13],[x+13,26]]);
-   profile('#858589',[[x-10,12],[x-8,-12],[x+8,-12],[x+10,12]]);
-   ctx.fillStyle='#0c0c12';ctx.fillRect(gx+x-7,gy-10,14,7);
-   ctx.fillStyle='#c2aba0';ctx.fillRect(gx+x-8,gy-12,16,2);
-   ctx.fillStyle='#9e6342';ctx.fillRect(gx+x-9,gy+34,17,4);
-  }
- }else for(let i=0;i<[2,2,3,2,4][weapon];i++){
-  const x=(i-([2,2,3,2,4][weapon]-1)/2)*13;
-  ctx.fillStyle='#1d1625';ctx.fillRect(gx+x-5,gy+4,10,30);
-  ctx.fillStyle=color;ctx.fillRect(gx+x-3,gy+6,6,24);
-  ctx.fillStyle='#fff5db';ctx.fillRect(gx+x-2,gy+8,2,12);
- }
- profile('#4d3843',[[-50,62],[-37,37],[-28,40],[-30,60],[-12,78],[-51,78]]);
- profile('#76545a',[[50,62],[35,38],[28,42],[31,58],[14,78],[52,78]]);
- if(flash>0){
-  ctx.globalAlpha=Math.min(1,flash*14);
-  profile(color,[[-24,9],[-45,-20],[-15,-13],[-9,-45],[7,-25],[26,-50],[19,-11],[48,-22],[24,10]]);
-  profile('#fffae0',[[-11,4],[-18,-14],[-4,-9],[0,-28],[7,-12],[22,-14],[12,4]]);
-  ctx.globalAlpha=1;
+ if(enemiesReady){
+  const cycle=heat>0?Math.max(1,Math.min(19,Math.floor((1-heat/guns[weapon].rate)*19)+1)):0;
+  const width=[158,205,188,181,210][weapon];
+  const gx=240+Math.cos(elapsed/2)*3-width/2;
+  const gy=243-width*.70+Math.sin(elapsed)*2;
+  ctx.drawImage(weaponSheet,cycle*160,weapon*112,160,112,Math.round(gx),Math.round(gy),width,width*.70);
  }
  if(hurt>0){ctx.fillStyle='rgba(255,36,40,'+hurt*.7+')';ctx.fillRect(0,0,480,270)}
  ctx.fillStyle='#fff0d0';ctx.fillRect(240-1,135-1,2,2);
