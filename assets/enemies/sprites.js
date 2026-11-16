@@ -35,6 +35,7 @@ const ferroEnemySprites = (() => {
  ];
  const foot=177, motionFrames=6, motionColumns=12;
  const motionPoses=['walk','jump','shoot'];
+ const bodyHeight=140, sideMargin=7, topMargin=5, sampleStep=3;
  const directionWidths=[1,.93,.80,.91,.96,.91,.80,.93];
 
  function canvas(width,height=width){
@@ -53,6 +54,59 @@ const ferroEnemySprites = (() => {
   });
  }
 
+ function readAlpha(atlas,step=1){
+  const copy=canvas(atlas.naturalWidth/step,atlas.naturalHeight/step);
+  const ctx=copy.getContext('2d',{willReadFrequently:true});
+  ctx.drawImage(atlas,0,0,copy.width,copy.height);
+  const alpha=ctx.getImageData(0,0,copy.width,copy.height);
+  copy.width=copy.height=0;
+  return alpha;
+ }
+
+ function bounds(bitmap,x,y,w,h){
+  let left=w,right=0,top=h,bottom=0;
+  for(let row=0;row<h;row++){
+   let alpha=((y+row)*bitmap.width+x)*4+3;
+   for(let col=0;col<w;col++,alpha+=4){
+    if(bitmap.data[alpha]<72)continue;
+    left=Math.min(left,col);right=Math.max(right,col+1);
+    top=Math.min(top,row);bottom=Math.max(bottom,row+1);
+   }
+  }
+  return right>left&&bottom>top?{left,right,top,bottom}:null;
+ }
+
+ function scaleMotion(walk,poses,source){
+  const heights=walk.map(box=>box.bottom-box.top).sort((a,b)=>a-b);
+  const mid=Math.floor(heights.length/2);
+  const height=heights.length?(heights[mid]+heights[Math.floor((heights.length-1)/2)])/2:bodyHeight;
+  const ground=walk.length?Math.max(...walk.map(box=>box.bottom)):foot;
+  const center=size/2;
+  const left=Math.min(center,...poses.map(box=>box.left));
+  const right=Math.max(center,...poses.map(box=>box.right));
+  const top=Math.min(ground,...poses.map(box=>box.top));
+  const bottom=Math.max(ground,...poses.map(box=>box.bottom));
+  const scale=Math.min(1.75,bodyHeight/height,
+   (size-2*sideMargin)*source.h/source.w/height,
+   (center-sideMargin)/Math.max(1,center-left,right-center),
+   (foot-topMargin)/Math.max(1,ground-top),
+   (size-foot-2)/Math.max(1,bottom-ground));
+  return {ground,scale,height:height*scale};
+ }
+
+ function motionGeometry(sheets,sprites){
+  const cell=size/sampleStep;
+  const boundsByPose=sheets.map(sheet=>{
+   const alpha=readAlpha(sheet,sampleStep);
+   return sprites.map((_,slot)=>Array.from({length:motionFrames},(_,frame)=>{
+    const index=slot*motionFrames+frame;
+    const box=bounds(alpha,index%motionColumns*cell,Math.floor(index/motionColumns)*cell,cell,cell);
+    return box&&{left:box.left*sampleStep,right:box.right*sampleStep,top:box.top*sampleStep,bottom:box.bottom*sampleStep};
+   }).filter(Boolean));
+  });
+  return sprites.map((source,slot)=>scaleMotion(boundsByPose[0][slot],boundsByPose.flatMap(pose=>pose[slot]),source));
+ }
+
  // Keep only the active and most recently loaded campaign world decoded.
  function prepare(theme){
   if(loaded.has(theme)){
@@ -66,29 +120,33 @@ const ferroEnemySprites = (() => {
   const task=Promise.all([
    image(file),...motionPoses.map(pose=>image(prefix+'-'+pose+'.png'))
   ]).then(([base,...sheets])=>{
+   const baseAlpha=readAlpha(base);
    const sprites=rects.map(([x,y,w,h])=>{
     if(x+w>base.naturalWidth||y+h>base.naturalHeight)throw new Error('Invalid enemy atlas dimensions');
-    return {image:base,x,y,w,h};
+    const box=bounds(baseAlpha,x,y,w,h);
+    return box?{image:base,x:x+box.left,y:y+box.top,w:box.right-box.left,h:box.bottom-box.top}
+     :{image:base,x,y,w,h};
    });
    for(const sheet of sheets){
     if(sheet.naturalWidth!==motionColumns*size||sheet.naturalHeight!==10*size)throw new Error('Invalid motion atlas dimensions');
    }
-   loaded.set(theme,{sprites,sheets});
+   loaded.set(theme,{sprites,sheets,geometry:motionGeometry(sheets,sprites)});
    trimWorlds();
   }).finally(()=>worlds.delete(theme));
   worlds.set(theme,task);
   return task;
  }
 
- function motionFrame(sheet,type,view,frame){
+ function motionFrame(sheet,type,view,frame,geometry){
   const image=canvas(size),ctx=image.getContext('2d');
   const index=type.slot*motionFrames+Math.floor(frame*motionFrames/12);
   const x=(index%motionColumns)*size,y=Math.floor(index/motionColumns)*size;
   const turn=directionWidths[view];
-  ctx.translate(size/2,0);
-  ctx.scale(view>4?-turn:turn,1);
+  ctx.translate(size/2,foot);
+  const {scale,ground}=geometry;
+  ctx.scale((view>4?-turn:turn)*scale,scale);
   ctx.imageSmoothingEnabled=false;
-  ctx.drawImage(sheet,x,y,size,size,-size/2,0,size,size);
+  ctx.drawImage(sheet,x,y,size,size,-size/2,-ground,size,size);
   ctx.resetTransform();
   shade(ctx,view,0);
   return image;
@@ -101,13 +159,13 @@ const ferroEnemySprites = (() => {
   ctx.fillRect(0,0,size,size);
  }
 
- function draw(source,type,view,pose,frame){
+ function draw(source,type,view,pose,frame,geometry){
   const image=canvas(size),ctx=image.getContext('2d');
   const t=frame/11,phase=frame*Math.PI/6;
   const hit=pose==='hit'?Math.sin(Math.PI*t):0;
   const fall=pose==='death'?Math.sin(t*Math.PI/2):0;
   const aerial=['wraith','winged','pillar'].includes(type.body);
-  const height=Math.min(151,149*source.h/source.w),width=height*source.w/source.h;
+  const height=geometry.height,width=height*source.w/source.h;
   const turn=directionWidths[view],bob=aerial&&!fall?Math.sin(phase)*4:0;
   ctx.imageSmoothingEnabled=false;
   ctx.translate(size/2,foot-bob);
@@ -143,7 +201,8 @@ const ferroEnemySprites = (() => {
    const motion=pose==='run'?'walk':pose;
    const sheet=entry.sheets[motionPoses.indexOf(motion)];
    const key=type.id+':'+view+':'+(sheet?motion:pose)+':'+(sheet?Math.floor(frame/2):frame);
-   const image=frames.get(key)??(sheet?motionFrame(sheet,type,view,frame):draw(entry.sprites[type.slot],type,view,pose,frame));
+   const geometry=entry.geometry[type.slot];
+   const image=frames.get(key)??(sheet?motionFrame(sheet,type,view,frame,geometry):draw(entry.sprites[type.slot],type,view,pose,frame,geometry));
    frames.delete(key);
    frames.set(key,image);
    if(frames.size>192)frames.delete(frames.keys().next().value);

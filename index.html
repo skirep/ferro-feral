@@ -41,7 +41,7 @@
 <script src="./account.js"></script>
 <script src="./supabase-config.js"></script>
 <script src="./assets/enemies/catalog.js"></script>
-<script src="./assets/enemies/sprites.js?v=arena1"></script>
+<script src="./assets/enemies/sprites.js?v=scale2"></script>
 <script src="./assets/combat.js"></script>
 <script src="./assets/levels/arena.js?v=1"></script>
 <script src="./assets/music.js"></script>
@@ -658,7 +658,7 @@ function draw(){
   const bearing=Math.atan2(p.y-e.y,p.x-e.x);
   const view=facingView(e.facing,bearing);
   if(e.view===undefined||Math.abs(angle(bearing-e.facing-e.view*Math.PI/4))>Math.PI*.17)e.view=view;
-  scene.push({x:e.x,y:e.y,foe:e,pose,frame,size:e.type.size,
+  scene.push({x:e.x,y:e.y,foe:e,pose,frame,size:1+(e.type.size-1)*(e.type.kind==='boss'?.65:.5),
    offset:e.hp>0?hopHeight(e):0,hit:e.hit>0});
 
  }
