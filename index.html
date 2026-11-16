@@ -62,7 +62,7 @@ let state='menu',time=0,elapsed=0,roomDistance;
 let audio, music, fx, step=0, nextBeat=0, muted=false;
 function level(index){
  n=index;
- attempt={shots:0,hits:0,seconds:0,damageTaken:0};
+ attempt={shots:0,hits:0,seconds:0,damageTaken:0,secrets:0};
  const chapter=levels[n], rooms=Array.from({length:16},(_,i)=>[4+i%4*9,4+Math.floor(i/4)*9]);
  grid=Array.from({length:mapSize},()=>Array(mapSize).fill(1));
  heights=grid.map(row=>row.map(()=>0));
@@ -83,6 +83,15 @@ function level(index){
    mark(cx,cy,orderHeight(i-1)+(orderHeight(i)-orderHeight(i-1))*interpolation);
   }
  }
+ const [secretRoom,secretSide]=chapter.secret;
+ const [secretX,secretY]=rooms[secretRoom];
+ const roomWidth=chapter.arenas.includes(secretRoom)?3:2;
+ const secretFloor=orderHeight(chapter.route.indexOf(secretRoom));
+ for(let offset=roomWidth+1;offset<=5;offset++){
+  const x=secretX+offset*secretSide;
+  mark(x,secretY+1,secretFloor);
+  if(offset>=4)mark(x,secretY+2,secretFloor);
+ }
  ceiling=2.58;
  const spawn=(x,y,id,i)=>({x:x+.5,y:y+.5,id,hp:types[id][3],phase:i*.71,reload:1+i*.1,hit:0,dead:0,wind:0,facing:i*1.7,jump:0,travel:0,run:false});
  foes=chapter.roster.map((id,i)=>{
@@ -98,7 +107,7 @@ function level(index){
  shots=[];blood.length=0;heat=flash=hurt=0;
  const [ex,ey]=rooms[chapter.route.at(-1)];
  exitPoint=[ex+2.5,ey+.5];
- items=[[...exitPoint,'exit']];
+ items=[[...exitPoint,'exit'],[secretX+5*secretSide+.5,secretY+2.5,'secret']];
  for(let i=2;i<chapter.route.length-1;i+=2){
   const [x,y]=rooms[chapter.route[i]];
   items.push([x-.5,y+.5,i%4?'ammo':'hp']);
@@ -353,11 +362,17 @@ function update(dt){
   if(kind==='key'){keyHeld=true;pickupNotice='CLAU DE SORTIDA';pickupTime=3.8}
   if(kind==='weapon'){
    owned.add(id);weapon=id;heat=0;p.ammo+=12;
-   pickupNotice=guns[id].name+'  ·  '+(id+1);pickupTime=3.8;
+   pickupNotice='ARMA RECOLLIDA · '+guns[id].name+' · '+(id+1);pickupTime=3.8;
    if(audio)tone(440+id*54,.18,.42,'triangle',audio.currentTime,fx,725+id*54);
   }
   if(kind==='hp'){if(p.hp===100)return true;p.hp=Math.min(100,p.hp+35)}
   if(kind==='ammo')p.ammo+=12;
+  if(kind==='secret'){
+   attempt.secrets++;
+   p.ammo+=12;
+   pickupNotice='SECRET DESCOBERT · +500 PUNTS';
+   pickupTime=3.8;
+  }
   return kind==='exit';
  });
  if(p.hp<=0)end(false);
@@ -626,7 +641,7 @@ function draw(){
    scene.push({x,y,art:pickupArt[id],size:.74,offset:.09+Math.sin(time*4)*.055,fixture:true});
    continue;
   }
-  scene.push({x,y,size:kind==='exit'?.65:.21,color:kind==='hp'?'#8cf0a2':kind==='ammo'?'#ffce75':keyHeld?'#69fce0':'#bd5453',offset:kind==='exit'?.19:.09});
+  scene.push({x,y,size:kind==='exit'?.65:.21,color:kind==='hp'?'#8cf0a2':kind==='ammo'?'#ffce75':kind==='secret'?'#bf91ff':keyHeld?'#69fce0':'#bd5453',offset:kind==='exit'?.19:.09});
  }
  for(const o of scene){const dx=o.x-p.x,dy=o.y-p.y;o.z=dx*ca+dy*sa;o.l=-dx*sa+dy*ca}
  scene.sort((a,b)=>b.z-a.z);
@@ -696,7 +711,7 @@ function draw(){
   ctx.fillStyle='#160e19ee';ctx.fillRect(112,178,256,26);
   ctx.fillStyle=guns[weapon].color;ctx.fillRect(112,178,256,2);
   ctx.fillStyle='#fff0cd';ctx.textAlign='center';
-  ctx.fillText(pickupNotice==='CLAU DE SORTIDA'?'CLAU DE SORTIDA RECOLLIDA':'ARMA RECOLLIDA  ·  '+pickupNotice,240,195);ctx.textAlign='left';
+  ctx.fillText(pickupNotice==='CLAU DE SORTIDA'?'CLAU DE SORTIDA RECOLLIDA':pickupNotice,240,195);ctx.textAlign='left';
  }
  ctx.restore();
 }
@@ -712,7 +727,7 @@ function completeLevel(){
  const special=defeated.filter(enemy=>enemy.id>=7).length;
  const points=calculateLevelScore({...attempt,special,normal:defeated.length-special});
  const previous=records[n];
- records=saveLevelRecord(progressStorage,records,n,{points,seconds:attempt.seconds});
+ records=saveLevelRecord(progressStorage,records,n,{points,seconds:attempt.seconds,secrets:attempt.secrets});
  unlocked=saveCampaignProgress(progressStorage,n,unlocked);
  const record=records[n].points!==previous?.points||records[n].seconds!==previous?.seconds;
  if(n===levels.length-1){
