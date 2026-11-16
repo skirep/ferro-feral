@@ -20,7 +20,7 @@
 #campaignLevels li{margin:6px 0}#campaignLevels button{padding:8px 12px;text-align:left}#campaignLevels button:disabled{opacity:.48;cursor:default}
 </style>
 <canvas id="screen" width="576" height="324" aria-label="Ferro Feral"></canvas>
-<section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">La foneria ha après a fabricar carn. Baixa cinc plantes i apaga el cor que l’alimenta.</p><div id="menuActions"><button id="start">Entra a la foneria</button><button id="menuCampaign">Campanya</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
+<section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">La foneria ha après a fabricar carn. Baixa cinc plantes i apaga el cor que l’alimenta.</p><p id="accountStatus" role="status" hidden></p><div id="menuActions"><button id="start">Entra a la foneria</button><button id="menuCampaign">Campanya</button><button id="accountButton" hidden>Entra amb Google</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
 <section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma i Esc per pausar.</p><p><b>Mòbil</b> · Bolet per moure’t, arrossega la vista per girar i toca FOC o Arma.</p></div><button id="menuBack">Torna</button></section></section>
 <button id="pauseButton" type="button" aria-label="Pausa">Ⅱ</button>
 <button id="mute" aria-label="Activa o silencia la música">♫</button>
@@ -29,6 +29,8 @@
  <div id="touchActions"><button id="swap" type="button">Arma</button><button id="fireButton" type="button">FOC</button></div>
 </div>
 <script src="./campaign.js"></script>
+<script src="./account.js"></script>
+<script src="./supabase-config.js"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
@@ -698,12 +700,14 @@ function draw(){
  }
  ctx.restore();
 }
-let progressStorage;
-try{progressStorage=window.localStorage}catch{}
+let localStore;
+try{localStore=window.localStorage}catch{}
+let progressStorage=localStore;
 let unlocked=readCampaignProgress(progressStorage);
 let records=readLevelRecords(progressStorage);
 
 function completeLevel(){
+ if(activeAccount&&activeAccount===sessionAccount)queueCloudCompletion(n);
  const defeated=foes.filter(enemy=>enemy!==boss&&enemy.hp<=0);
  const special=defeated.filter(enemy=>enemy.id>=7).length;
  const points=calculateLevelScore({...attempt,special,normal:defeated.length-special});
@@ -745,9 +749,111 @@ function showCampaign(){
  showMenuPanel('campaign');
 }
 $('menuCampaign').onclick=showCampaign;
+let account,sessionAccount=null,activeAccount=null,cloudBusy=false;
+const accountButton=$('accountButton');
+const accountStatus=$('accountStatus');
+
+function scopedStorage(user){
+ const prefix='ferro-account:'+user+':';
+ return {
+  getItem:key=>localStore?.getItem(prefix+key),
+  setItem:(key,value)=>localStore?.setItem(prefix+key,value)
+ };
+}
+function pendingKey(user){return 'ferro-pending:'+user}
+function readPending(user){
+ try{
+  const pending=JSON.parse(localStore?.getItem(pendingKey(user)));
+  return Array.isArray(pending)?pending.filter(level=>Number.isInteger(level)&&level>=0&&level<levels.length):[];
+ }catch{return []}
+}
+function queueCloudCompletion(level){
+ const user=activeAccount;
+ try{
+  const pending=readPending(user);
+  if(!pending.includes(level))localStore?.setItem(pendingKey(user),JSON.stringify([...pending,level]));
+  if(!localStore)throw new Error('Storage unavailable');
+ }catch{
+  accountStatus.textContent='No es pot desar la cua de sincronització.';
+  return;
+ }
+ if(cloudBusy)retryCloud=true;
+ else void flushCloudProgress();
+}
+async function flushCloudProgress(){
+ if(cloudBusy||!account||!sessionAccount)return;
+ const user=sessionAccount;
+ cloudBusy=true;
+ try{
+  for(const level of readPending(user).sort((a,b)=>a-b)){
+   if(user!==sessionAccount)return;
+   await account.save(level);
+   const remaining=readPending(user).filter(entry=>entry!==level);
+   localStore?.setItem(pendingKey(user),JSON.stringify(remaining));
+  }
+  if(user!==sessionAccount)return;
+  const remote=await account.load();
+  if(user!==sessionAccount)return;
+  const storage=scopedStorage(user);
+  const next=saveCampaignProgress(storage,-1,remote);
+  if(user===activeAccount){
+   unlocked=Math.max(unlocked,next);
+   if(state==='menu'&&!$('campaignPanel').hidden)showCampaign();
+   if(state==='menu')$('start').dataset.level=unlocked;
+  }
+  accountStatus.textContent='Sessió de Google activa · Desbloquejos sincronitzats';
+ }catch{
+  if(user===sessionAccount)accountStatus.textContent='Sincronització pendent · El progrés es conserva al navegador';
+ }finally{
+  cloudBusy=false;
+  if(user!==sessionAccount||(sessionAccount&&readPending(user).length&&retryCloud)){
+   retryCloud=false;
+   void flushCloudProgress();
+  }
+ }
+}
+let retryCloud=false;
+function activateAccount(user){
+ activeAccount=user;
+ progressStorage=user?scopedStorage(user):localStore;
+ unlocked=readCampaignProgress(progressStorage);
+ records=readLevelRecords(progressStorage);
+ $('start').dataset.level=unlocked;
+ $('start').textContent=unlocked?'Continua la campanya':'Entra a la foneria';
+ if(!$('campaignPanel').hidden)showCampaign();
+}
+function updateAccount(user){
+ sessionAccount=user;
+ accountButton.textContent=user?'Tanca la sessió':'Entra amb Google';
+ accountStatus.textContent=user?'Recuperant el progrés…':'Mode convidat';
+ if((state==='menu'||state==='end')&&activeAccount!==user)activateAccount(user);
+ if(user)void flushCloudProgress();
+}
+accountButton.onclick=async()=>{
+ if(!account||state==='pause')return;
+ accountButton.disabled=true;
+ try{
+  const {error}=await (sessionAccount?account.signOut():account.signIn());
+  if(error)throw error;
+ }catch{accountStatus.textContent='No s’ha pogut completar l’accés amb Google.'}
+ finally{accountButton.disabled=false}
+};
+window.addEventListener('online',()=>void flushCloudProgress());
+void connectFerroAccount(window.FERRO_SUPABASE,updateAccount).then(connection=>{
+ account=connection;
+ if(!account)return;
+ accountButton.hidden=false;
+ accountStatus.hidden=false;
+ accountStatus.textContent='Mode convidat';
+ void flushCloudProgress();
+}).catch(()=>{
+ accountStatus.hidden=false;
+ accountStatus.textContent='El servei en línia no està disponible.';
+});
 
 function end(win){
  showMenuPanel();$('menuRestart').hidden=true;redraw=true;
+ accountButton.disabled=false;
  state='end';document.body.classList.remove('playing');document.exitPointerLock?.();
  $('intro').textContent=win?'Has recuperat les cinc claus. La foneria torna a ser vostra.':'La foneria t’ha engolit. Pots tornar a provar el nivell.';
  $('start').textContent=win?'Torna a la foneria':'Reintenta el nivell';
@@ -758,11 +864,13 @@ function end(win){
 $('start').onclick=e=>{
  showMenuPanel();$('menuRestart').hidden=true;
  if(state!=='pause'){
+  if(activeAccount!==sessionAccount)activateAccount(sessionAccount);
   const selected=unlockedLevel(Number($('start').dataset.level));
   owned.clear();
   for(let id=0;id<=selected&&id<5;id++)owned.add(id);
   level(Math.min(selected,unlocked));
  }
+ accountButton.disabled=false;
  state='playing';$('menu').hidden=true;document.body.classList.add('playing');initAudio();
  if(e?.pointerType!=='touch'&&matchMedia('(pointer:fine)').matches)screen.requestPointerLock?.()?.catch?.(()=>{});
 };
@@ -794,6 +902,7 @@ $('swap').onclick=()=>{const available=[...owned].sort((a,b)=>a-b);weapon=availa
 function pause(){
  if(state!=='playing')return;
  showMenuPanel();$('menuRestart').hidden=false;document.exitPointerLock?.();
+ accountButton.disabled=true;
  state='pause';document.body.classList.remove('playing');keys.clear();resetTouch();
  $('intro').textContent='WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma.';
  $('start').textContent='Continua';$('menu').hidden=false;
