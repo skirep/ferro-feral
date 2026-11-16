@@ -4,14 +4,15 @@ import { test } from 'node:test';
 import { Script, runInNewContext } from 'node:vm';
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
-const source = read('../campaign.js');
 const html = read('../index.html');
+const scripts = Array.from(html.matchAll(/<script src="\.\/([^"]+)"><\/script>/g), match => match[1]);
+const source = scripts.slice(0, scripts.indexOf('campaign.js')+1).map(path => read('../'+path)).join('\n');
 const game = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const {
-  worlds, levels, readCampaignProgress, saveCampaignProgress,
+  ferroSurfaces, worlds, levels, readCampaignProgress, saveCampaignProgress,
   calculateLevelScore, readLevelRecords, saveLevelRecord
 } = runInNewContext(source + `
-  ({worlds, levels, readCampaignProgress, saveCampaignProgress,
+  ({ferroSurfaces, worlds, levels, readCampaignProgress, saveCampaignProgress,
     calculateLevelScore, readLevelRecords, saveLevelRecord})
 `);
 
@@ -85,7 +86,7 @@ test('a personal record prefers points, then faster time, and survives reload', 
 
 test('the campaign has five themed worlds with five authored routes apiece', () => {
   assert.equal(worlds.length, 5);
-  assert.equal(new Set(worlds.map(world => world.material)).size, 5);
+  assert.equal(new Set(ferroSurfaces.map(surface => surface.material)).size, 5);
   assert.equal(levels.length, 25);
   assert.equal(new Set(levels.map(level => level.route.join(','))).size, 25);
   for (let index = 0; index < worlds.length; index++) {

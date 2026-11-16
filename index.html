@@ -29,6 +29,13 @@
  <div id="joystick" aria-label="Joystick de moviment"><div id="stick"></div></div>
  <div id="touchActions"><button id="swap" type="button">Arma</button><button id="jumpButton" type="button" aria-label="Salta">Salt</button><button id="fireButton" type="button">FOC</button></div>
 </div>
+<script src="./assets/levels/catalog.js"></script>
+<script src="./assets/levels/illa-maleida.js"></script>
+<script src="./assets/levels/neon-apocalypse.js"></script>
+<script src="./assets/levels/regne-oblidats.js"></script>
+<script src="./assets/levels/biohazard-zero.js"></script>
+<script src="./assets/levels/the-abyss.js"></script>
+<script src="./assets/textures/world-materials.js"></script>
 <script src="./campaign.js"></script>
 <script src="./account.js"></script>
 <script src="./supabase-config.js"></script>
@@ -458,7 +465,7 @@ function applyQuality(){
  redraw=true;
 }
 applyQuality();
-const palettes=worlds.map(world=>world.palette);
+const palettes=ferroSurfaces.map(({wall,floor,ceiling,accent})=>[wall,floor,ceiling,accent]);
 
 function shade(rgb,light){
  const r=Math.min(255,rgb[0]*light)|0,g=Math.min(255,rgb[1]*light)|0,b=Math.min(255,rgb[2]*light)|0;
@@ -472,7 +479,7 @@ function lightAt(x,y){
  const row=Math.max(0,Math.min(lightSize-1,Math.floor(y*4)));
  return (row*lightSize+col)*3;
 }
-const glowColors=worlds.map(world=>world.glow);
+const glowColors=ferroSurfaces.map(surface=>surface.glow);
 const boltColor=[[102,229,255],[255,189,81],[255,212,101],[95,255,178],[255,91,65]];
 const reactorPulse=()=>Math.pow(Math.max(0,Math.cos(time*3.7)),9);
 function addLight(x,y,radius,power,color){
@@ -504,50 +511,15 @@ function lit(rgb,light,index,weight=1){
  const b=Math.min(255,rgb[2]*light+lighting[index+2]*weight)|0;
  return (255<<24)|(b<<16)|(g<<8)|r;
 }
-const wallMaterials=worlds.map(world=>[world.palette[0],world.palette[1],world.palette[3],world.palette[2]]);
-function materialPixel(type,u,v,style){
- const grain=((u*13^v*61^(u*v))&31)/255;
- switch(type){
-  case 'timber': {
-   const plank=(u+style*4)&31;
-   const knot=Math.hypot(plank-14,(v&63)-30);
-   return [plank<2?3:0,.82+grain+Math.sin(u*.8+Math.sin(v*.12)*2+knot*.24)*.12];
-  }
-  case 'circuit': {
-   const lane=(u+style*17)&31, strip=(v+style*9)&31;
-   const trace=(lane===5&&strip<24)||(strip===23&&lane<21);
-   return [trace?2:lane<2||strip<2?3:0,trace?.78:.76+grain];
-  }
-  case 'masonry': {
-   const row=v&15,col=(u+((v>>4)&1)*16)&31;
-   return [row<2||col<2?3:0,.72+grain+((u>>5^v>>4)&3)*.08];
-  }
-  case 'membrane': {
-   const vein=Math.sin(u*.13+Math.sin(v*.17)*2.8+style);
-   const nodes=Math.cos(v*.20-u*.13);
-   return [vein>.88?2:nodes<-.5?1:0,.57+grain+Math.abs(vein)*.30];
-  }
-  default: {
-   const shard=(u+v*2+style*19)&31,cut=(u*2-v)&63;
-   return [shard<2?2:cut<20?3:0,.65+grain+(shard>>3)*.13];
-  }
- }
-}
-const wallTextures=wallMaterials.map((colors,index)=>Array.from({length:3},(_,style)=>
- Array.from({length:128*128},(_,pixel)=>{
-  const [ink,light]=materialPixel(worlds[index].material,pixel&127,pixel>>7,style);
-  return colors[ink].map(channel=>Math.min(255,Math.round(channel*light)));
- })
-));
 function world(ca,sa,plane,eye){
  const chapter=levels[n],theme=chapter.theme;
  const [,floorInk,roofInk,lamp]=palettes[theme];
  depth.fill(Infinity);
- pixels.fill(shade(chapter.outdoors?worlds[theme].sky:roofInk,chapter.outdoors?1:.24));
+ pixels.fill(shade(chapter.outdoors?ferroSurfaces[theme].sky:roofInk,chapter.outdoors?1:.24));
  if(chapter.outdoors){
   for(let y=0;y<Math.min(H,Math.ceil(horizon));y++){
    const intensity=.40+Math.min(1,y/Math.max(1,horizon))*.65;
-   pixels.fill(shade(worlds[theme].sky,intensity),y*W,(y+1)*W);
+   pixels.fill(shade(ferroSurfaces[theme].sky,intensity),y*W,(y+1)*W);
   }
  }
  for(let x=0;x<W;x++){
@@ -631,7 +603,7 @@ const fixtureArt=glowColors.map(([r,g,b])=>{
  return c;
 });
 function drawAtmosphere(ca,sa,plane,eye,core){
- const sparks=worlds[levels[n].theme].spark;
+ const sparks=ferroSurfaces[levels[n].theme].spark;
  const count=settings.particles?(core?77:43):0;
  for(let i=0;i<count;i++){
   const anchor=i<43?lamps[i%lamps.length]:[core.x,core.y];
