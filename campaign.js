@@ -26,3 +26,26 @@ function saveCampaignProgress(storage,completed,nextUnlocked){
  try{storage.setItem(campaignSaveKey,JSON.stringify({unlocked}))}catch{}
  return unlocked;
 }
+
+function calculateLevelScore({normal,special,shots,hits,seconds,damageTaken}){
+ const timeBonus=Math.max(0,600-Math.floor(seconds)*5);
+ const accuracyBonus=shots?Math.round(400*hits/shots):0;
+ return normal*100+special*250+2000+1000+1500+(damageTaken?0:2500)+timeBonus+accuracyBonus;
+}
+function readLevelRecords(storage){
+ try{
+  const records=JSON.parse(storage.getItem('ferro-records-v1:'+campaign.id));
+  return levels.map((_,index)=>{
+   const entry=records?.[index];
+   return Number.isInteger(entry?.points)&&entry.points>=0&&Number.isFinite(entry.seconds)&&entry.seconds>=0?entry:null;
+  });
+ }catch{return levels.map(()=>null)}
+}
+function saveLevelRecord(storage,records,index,result){
+ const saved=readLevelRecords(storage);
+ const best=(a,b)=>!a||b&&(b.points>a.points||b.points===a.points&&b.seconds<a.seconds)?b:a;
+ const next=records.map((entry,i)=>best(entry,saved[i]));
+ next[index]=best(next[index],result);
+ try{storage.setItem('ferro-records-v1:'+campaign.id,JSON.stringify(next))}catch{}
+ return next;
+}
