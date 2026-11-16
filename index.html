@@ -58,6 +58,8 @@ const mapSize=37;
 const keys=new Set();
 let n=0,grid,heights,foes,shots,items,p,weapon,heat,flash,hurt,exitPoint,lamps,ceiling,pickupNotice,pickupTime,boss,keyHeld,keyDropped;
 const owned=new Set([0]);
+const blood=[];
+const bloodColors=['#6a101d','#a0192b','#db2837','#ff514a'];
 let state='menu',time=0,elapsed=0,roomDistance;
 let audio, music, fx, step=0, nextBeat=0, muted=false;
 function level(index){
@@ -94,7 +96,7 @@ function level(index){
  foes.push(boss);keyHeld=keyDropped=false;
  const [sx,sy]=rooms[chapter.route[0]],[nx,ny]=rooms[chapter.route[1]];
  p={x:sx+.5,y:sy+.5,a:Math.atan2(ny-sy,nx-sx),z:heights[sy][sx],hp:100,ammo:20};
- shots=[];heat=flash=hurt=0;
+ shots=[];blood.length=0;heat=flash=hurt=0;
  const [ex,ey]=rooms[chapter.route.at(-1)];
  exitPoint=[ex+2.5,ey+.5];
  items=[[...exitPoint,'exit']];
@@ -175,7 +177,7 @@ function prepareEnemies(){
    button.textContent='Recarrega per tornar-ho a provar';
    button.disabled=false;button.onclick=()=>location.reload();
   };
-  img.src='./assets/'+file+'?v=frames1';
+  img.src='./assets/'+file+(img===weaponSheet?'?v=frames1':'?v=consistent2');
  }
 }
 function initAudio(){
@@ -214,6 +216,30 @@ function score(){
   nextBeat+=60/[128,144,139,150,156][n]/4;step++;
  }
 }
+function sprayBlood(enemy,amount){
+ const count=Math.min(14,6+Math.floor(amount/12));
+ const direction=Math.atan2(enemy.y-p.y,enemy.x-p.x);
+ if(blood.length+count>96)blood.splice(0,blood.length+count-96);
+ for(let i=0;i<count;i++){
+  const a=direction+(Math.random()-.5)*2.5,speed=.28+Math.random()*1.45;
+  blood.push({
+   x:enemy.x-Math.cos(direction)*.16+(Math.random()-.5)*.17,
+   y:enemy.y-Math.sin(direction)*.16+(Math.random()-.5)*.17,
+   altitude:floor(enemy.x,enemy.y)+hopHeight(enemy)+(enemy.id===9?.80:.49)+Math.random()*.24,
+   vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,vz:.65+Math.random()*1.4,
+   ttl:.31+Math.random()*.37,color:bloodColors[i%bloodColors.length],
+   size:.021+Math.random()*.035
+  });
+ }
+}
+function tickBlood(dt){
+ for(let i=blood.length-1;i>=0;i--){
+  const drop=blood[i];
+  drop.ttl-=dt;
+  drop.x+=drop.vx*dt;drop.y+=drop.vy*dt;drop.altitude+=drop.vz*dt;drop.vz-=6*dt;
+  if(drop.ttl<=0||wall(drop.x,drop.y)||drop.altitude<=floor(drop.x,drop.y))blood.splice(i,1);
+ }
+}
 function fire(){
  if(heat>0)return;
  let gun=guns[weapon];
@@ -227,13 +253,15 @@ function fire(){
  targets.slice(0,gun.targets).forEach((e,i)=>{
   const distance=Math.hypot(e.x-p.x,e.y-p.y);
   const drop=weapon===1?Math.max(.30,1-distance*.13):1;
-  e.hp-=gun.damage*drop/(1+i*.42)*(e.id===8&&!e.wind?.55:1);
+  const impact=gun.damage*drop/(1+i*.42)*(e.id===8&&!e.wind?.55:1);
+  e.hp-=impact;sprayBlood(e,impact);
   e.hit=hitDuration;
   if(weapon===4){
    for(const other of foes){
     const dx=other.x-e.x,dy=other.y-e.y,d=Math.hypot(dx,dy);
     if(other===e||other.hp<=0||d>1.5||!ray(e.x,e.y,dx/d,dy/d,floor(e.x,e.y)+.52,floor(other.x,other.y)+.52,d))continue;
-    other.hp-=44*(1-d/1.6);other.hit=hitDuration;
+    const splash=44*(1-d/1.6);
+    other.hp-=splash;other.hit=hitDuration;sprayBlood(other,splash);
    }
   }
  });
@@ -256,6 +284,7 @@ function updateNavigation(){
  roomDistance={start,values};
 }
 function update(dt){
+ tickBlood(dt);
  const turn=+keys.has('arrowright')-keys.has('arrowleft');
  p.a+=turn*dt*2.3;
  const forward=+keys.has('w')+keys.has('arrowup')-keys.has('s')-keys.has('arrowdown')-stickY;
@@ -582,11 +611,12 @@ function draw(){
   const frame=Math.max(0,Math.min(11,Math.floor(elapsedFrame)));
   const bearing=Math.atan2(p.y-e.y,p.x-e.x);
   const view=facingView(e.facing,bearing);
-  if(e.view===undefined||Math.abs(angle(bearing-e.facing-e.view*Math.PI/4))>Math.PI*.15)e.view=view;
+  if(e.view===undefined||Math.abs(angle(bearing-e.facing-e.view*Math.PI/4))>Math.PI*.17)e.view=view;
   scene.push({x:e.x,y:e.y,art:enemySheets[e.id],frameX:frame*80,frameY:(e.view*enemyPoses.length+enemyPoses.indexOf(pose))*80,frameSize:80,size:e.id===9?1.48:1,
    offset:e.hp>0?hopHeight(e):0,hit:e.hit>0,enemy:e.id});
 
  }
+ for(const drop of blood)scene.push({x:drop.x,y:drop.y,altitude:drop.altitude,size:drop.size,color:drop.color,blood:true});
  for(const s of shots)scene.push({...s,size:.14,offset:.50});
  for(const [x,y,kind,id] of items){
   if(kind==='key'){scene.push({x,y,art:keyArt,size:.52,offset:.07+Math.sin(time*4)*.07,fixture:true});continue}
@@ -600,7 +630,7 @@ function draw(){
  scene.sort((a,b)=>b.z-a.z);
  for(const o of scene){
   if(o.z<.14)continue;
-  const h=Math.floor(focal/o.z*o.size),w=o.enemy===undefined?h:Math.round(h*1.20);
+  const h=Math.max(o.blood?2:0,Math.floor(focal/o.z*o.size)),w=o.enemy===undefined?h:Math.round(h*1.20);
   const left=Math.floor(W/2+W/2*o.l/(o.z*plane)-w/2);
   const altitude=o.altitude??floor(o.x,o.y)+(o.offset||0);
   const top=Math.floor(horizon+(eye-altitude)*focal/o.z-h);
