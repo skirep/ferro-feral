@@ -54,7 +54,7 @@ const guns=[
 ];
 const mapSize=37;
 const keys=new Set();
-let attempt;
+let attempt,checkpoint;
 let n=0,grid,heights,foes,shots,items,p,weapon,heat,flash,hurt,exitPoint,lamps,ceiling,pickupNotice,pickupTime,boss,keyHeld,keyDropped;
 const owned=new Set([0]);
 const blood=[];
@@ -63,7 +63,8 @@ let state='menu',time=0,elapsed=0,roomDistance;
 let audio, music, fx, step=0, nextBeat=0, muted=false;
 function level(index){
  n=index;
- attempt={shots:0,hits:0,seconds:0,damageTaken:0,secrets:0};
+ attempt={shots:0,hits:0,seconds:0,damageTaken:0,secrets:0,deaths:0};
+ checkpoint=null;
  const chapter=levels[n], rooms=Array.from({length:16},(_,i)=>[4+i%4*9,4+Math.floor(i/4)*9]);
  grid=Array.from({length:mapSize},()=>Array(mapSize).fill(1));
  heights=grid.map(row=>row.map(()=>0));
@@ -109,6 +110,10 @@ function level(index){
  const [ex,ey]=rooms[chapter.route.at(-1)];
  exitPoint=[ex+2.5,ey+.5];
  items=[[...exitPoint,'exit'],[secretX+5*secretSide+.5,secretY+2.5,'secret']];
+ const checkpointIndex=Math.floor(chapter.route.length/2);
+ const [cx,cy]=rooms[chapter.route[checkpointIndex]];
+ const [tx,ty]=rooms[chapter.route[checkpointIndex+1]];
+ items.push([cx+.5,cy+.5,'checkpoint',Math.atan2(ty-cy,tx-cx)]);
  for(let i=2;i<chapter.route.length-1;i+=2){
   const [x,y]=rooms[chapter.route[i]];
   items.push([x-.5,y+.5,i%4?'ammo':'hp']);
@@ -381,6 +386,12 @@ function update(dt){
   }
   if(kind==='hp'){if(p.hp===100)return true;p.hp=Math.min(100,p.hp+35)}
   if(kind==='ammo')p.ammo+=12;
+  if(kind==='checkpoint'){
+   if(p.hp<=0)return true;
+   checkpoint={x,y,a:id};
+   pickupNotice='PUNT DE CONTROL ACTIVAT';
+   pickupTime=3.8;
+  }
   if(kind==='secret'){
    attempt.secrets++;
    p.ammo+=12;
@@ -655,7 +666,7 @@ function draw(){
    scene.push({x,y,art:pickupArt[id],size:.74,offset:.09+Math.sin(time*4)*.055,fixture:true});
    continue;
   }
-  scene.push({x,y,size:kind==='exit'?.65:.21,color:kind==='hp'?'#8cf0a2':kind==='ammo'?'#ffce75':kind==='secret'?'#bf91ff':keyHeld?'#69fce0':'#bd5453',offset:kind==='exit'?.19:.09});
+  scene.push({x,y,size:kind==='exit'?.65:.21,color:kind==='hp'?'#8cf0a2':kind==='ammo'?'#ffce75':kind==='secret'?'#bf91ff':kind==='checkpoint'?'#4be9ff':keyHeld?'#69fce0':'#bd5453',offset:kind==='exit'?.19:.09});
  }
  for(const o of scene){const dx=o.x-p.x,dy=o.y-p.y;o.z=dx*ca+dy*sa;o.l=-dx*sa+dy*ca}
  scene.sort((a,b)=>b.z-a.z);
@@ -881,18 +892,26 @@ void connectFerroAccount(window.FERRO_SUPABASE,updateAccount).then(connection=>{
 });
 
 function end(win){
- showMenuPanel();$('menuRestart').hidden=true;redraw=true;
+ const canRespawn=!win&&checkpoint!==null;
+ showMenuPanel();$('menuRestart').hidden=!canRespawn;redraw=true;
  accountButton.disabled=false;
- state='end';document.body.classList.remove('playing');document.exitPointerLock?.();
- $('intro').textContent=win?'Has recuperat les cinc claus. La foneria torna a ser vostra.':'La foneria t’ha engolit. Pots tornar a provar el nivell.';
- $('start').textContent=win?'Torna a la foneria':'Reintenta el nivell';
+ state=canRespawn?'checkpoint':'end';document.body.classList.remove('playing');document.exitPointerLock?.();
+ $('intro').textContent=win?'Has recuperat les cinc claus. La foneria torna a ser vostra.':canRespawn?'Pots tornar al punt de control o reiniciar el nivell.':'La foneria t’ha engolit. Pots tornar a provar el nivell.';
+ $('start').textContent=win?'Torna a la foneria':canRespawn?'Torna al punt de control':'Reintenta el nivell';
  $('menu').hidden=false;
  $('start').dataset.level=win?0:n;
  keys.clear();resetTouch();
 }
 $('start').onclick=e=>{
  showMenuPanel();$('menuRestart').hidden=true;
- if(state!=='pause'){
+ if(state==='checkpoint'){
+  attempt.deaths++;
+  Object.assign(p,checkpoint,{hp:100,jumpTime:0});
+  p.z=p.groundZ=floor(p.x,p.y);
+  shots.length=0;
+  hurt=1;
+  heat=flash=0;
+ }else if(state!=='pause'){
   if(activeAccount!==sessionAccount)activateAccount(sessionAccount);
   const selected=unlockedLevel(Number($('start').dataset.level));
   owned.clear();
