@@ -35,6 +35,10 @@ const ferroEnemySprites = (() => {
  ];
  const foot=177, motionFrames=6, motionColumns=12;
  const motionPoses=['walk','jump','shoot'];
+ const directionalColumns=12, directionalSize=96;
+ const directionalAtlases=[
+  [[0,'corc-de-quilla-360.png']]
+ ];
  const directionWidths=[1,.93,.80,.91,.96,.91,.80,.93];
 
  function canvas(width,height=width){
@@ -63,9 +67,18 @@ const ferroEnemySprites = (() => {
   }
   if(worlds.has(theme))return worlds.get(theme);
   const [file,rects]=atlases[theme], prefix=file.replace('-sprites.png','');
+  const directional=directionalAtlases[theme]??[];
   const task=Promise.all([
-   image(file),...motionPoses.map(pose=>image(prefix+'-'+pose+'.png'))
-  ]).then(([base,...sheets])=>{
+   image(file),Promise.all(motionPoses.map(pose=>image(prefix+'-'+pose+'.png'))),
+   Promise.all(directional.map(async ([slot,file])=>{
+    const atlas=await image(file);
+    const rows=motionPoses.length*directionWidths.length*motionFrames/directionalColumns;
+    if(atlas.naturalWidth!==directionalColumns*directionalSize||atlas.naturalHeight!==rows*directionalSize){
+     throw new Error('Invalid directional enemy atlas dimensions: '+file);
+    }
+    return [slot,atlas];
+   }))
+  ]).then(([base,sheets,directionalSheets])=>{
    const sprites=rects.map(([x,y,w,h])=>{
     if(x+w>base.naturalWidth||y+h>base.naturalHeight)throw new Error('Invalid enemy atlas dimensions');
     return {image:base,x,y,w,h};
@@ -73,11 +86,21 @@ const ferroEnemySprites = (() => {
    for(const sheet of sheets){
     if(sheet.naturalWidth!==motionColumns*size||sheet.naturalHeight!==10*size)throw new Error('Invalid motion atlas dimensions');
    }
-   loaded.set(theme,{sprites,sheets});
+   loaded.set(theme,{sprites,sheets,directionalSheets:new Map(directionalSheets)});
    if(loaded.size>2)loaded.delete(loaded.keys().next().value);
   }).finally(()=>worlds.delete(theme));
   worlds.set(theme,task);
   return task;
+ }
+
+ // Directional sheets are packed by pose, then camera view, then animation frame.
+ function directionalFrame(sheet,pose,view,frame){
+  const i=(pose*directionWidths.length+view)*motionFrames+Math.floor(frame*motionFrames/12);
+  const x=i%directionalColumns*directionalSize,y=Math.floor(i/directionalColumns)*directionalSize;
+  const result=canvas(size),ctx=result.getContext('2d');
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(sheet,x,y,directionalSize,directionalSize,0,0,size,size);
+  return result;
  }
 
  function motionFrame(sheet,type,view,frame){
@@ -136,9 +159,16 @@ const ferroEnemySprites = (() => {
    const entry=loaded.get(type.theme);
    if(!entry)return null;
    const motion=pose==='run'?'walk':pose;
-   const sheet=entry.sheets[motionPoses.indexOf(motion)];
+   const motionIndex=motionPoses.indexOf(motion);
+   const directional=entry.directionalSheets.get(type.slot);
+   const sheet=entry.sheets[motionIndex];
    const key=type.id+':'+view+':'+(sheet?motion:pose)+':'+(sheet?Math.floor(frame/2):frame);
-   const image=frames.get(key)??(sheet?motionFrame(sheet,type,view,frame):draw(entry.sprites[type.slot],type,view,pose,frame));
+   let image=frames.get(key);
+   if(!image){
+    if(sheet&&directional)image=directionalFrame(directional,motionIndex,view,frame);
+    else if(sheet)image=motionFrame(sheet,type,view,frame);
+    else image=draw(entry.sprites[type.slot],type,view,pose,frame);
+   }
    frames.delete(key);
    frames.set(key,image);
    if(frames.size>192)frames.delete(frames.keys().next().value);
