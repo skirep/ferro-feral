@@ -1,16 +1,29 @@
 <!doctype html>
 <html lang="ca">
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Ferro Feral — Dejoco Arts</title>
 <meta name="description" content="FPS retro de Dejoco Arts amb tres nivells a diferents alçades.">
 <style>
-*{box-sizing:border-box}body{margin:0;background:#100c13;color:#fff0d0;font:16px monospace;overflow:hidden;touch-action:none}canvas{width:100vw;height:100dvh;object-fit:contain;image-rendering:pixelated;display:block}#menu{position:fixed;inset:0;display:grid;place-content:center;padding:24px;background:linear-gradient(90deg,#130c16ee,#35192166)}#menu[hidden]{display:none}h1{font-size:clamp(48px,11vw,144px);line-height:.8;margin:16px 0;color:#ff613f;text-shadow:4px 5px #5c211e;letter-spacing:-.09em}p{max-width:48ch;line-height:1.5}button{background:#ff6847;color:#160e17;border:0;padding:14px 20px;font:bold 16px monospace;cursor:pointer}#touch{display:none;position:fixed;inset:auto 12px 12px;justify-content:space-between;pointer-events:none}#touch button{pointer-events:auto;background:#251726c9;color:#fff0d0;padding:12px}body.playing #touch{display:flex}@media(pointer:fine){body.playing #touch{display:none}}#mute{position:fixed;right:10px;top:10px;padding:8px;background:#21141c;color:#fff0d0}
+*{box-sizing:border-box}body{margin:0;background:#100c13;color:#fff0d0;font:16px monospace;overflow:hidden;touch-action:none}canvas{width:100vw;height:100dvh;object-fit:contain;image-rendering:pixelated;display:block}#menu{position:fixed;inset:0;display:grid;place-content:center;padding:24px;background:linear-gradient(90deg,#130c16ee,#35192166)}#menu[hidden]{display:none}h1{font-size:clamp(48px,11vw,144px);line-height:.8;margin:16px 0;color:#ff613f;text-shadow:4px 5px #5c211e;letter-spacing:-.09em}p{max-width:48ch;line-height:1.5}button{background:#ff6847;color:#160e17;border:0;padding:14px 20px;font:bold 16px monospace;cursor:pointer}#touch{display:none;position:fixed;inset:0;pointer-events:none;user-select:none;-webkit-user-select:none}
+@media(any-pointer:coarse){body.playing #touch{display:block}}
+#joystick,#touchActions{position:absolute;bottom:max(16px,env(safe-area-inset-bottom))}
+#joystick{--diameter:clamp(112px,min(34vw,45dvh),172px);left:max(16px,env(safe-area-inset-left));width:var(--diameter);aspect-ratio:1;border-radius:50%;border:3px solid #f0bc9d99;background:#160f1cbd;box-shadow:inset 0 0 0 9px #10091377,0 5px 20px #0007;pointer-events:auto;touch-action:none}
+#joystick::before{content:"";position:absolute;inset:23%;border:1px dashed #fad0ae77;border-radius:50%}
+#stick{position:absolute;left:50%;top:50%;width:43%;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%) translate(var(--stick-x,0px),var(--stick-y,0px));background:#e77552;border:3px solid #ffd3ab;box-shadow:0 5px 12px #0009;pointer-events:none}
+#touchActions{right:max(16px,env(safe-area-inset-right));display:flex;align-items:end;gap:10px}
+#touchActions button{pointer-events:auto;touch-action:none;border:2px solid #f6cba58c;color:#fff0d0;background:#27182ad9;padding:0;min-width:62px;min-height:56px;border-radius:14px}
+#touchActions #fireButton{width:clamp(77px,19vw,112px);min-height:0;aspect-ratio:1;border-radius:50%;background:#8d3829e6;font-size:20px}
+#touchActions button:active{background:#c4603e}
+#mute{position:fixed;right:10px;top:10px;padding:8px;background:#21141c;color:#fff0d0}
 </style>
 <canvas id="screen" width="576" height="324" aria-label="Ferro Feral"></canvas>
 <section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">La foneria ha après a fabricar carn. Baixa tres plantes i apaga el cor que l’alimenta.</p><button id="start">Entra a la foneria</button></section>
 <button id="mute" aria-label="Activa o silencia la música">♫</button>
-<nav id="touch"><div><button data-key="a">◀</button><button data-key="w">▲</button><button data-key="s">▼</button><button data-key="d">▶</button></div><div><button id="swap">Arma</button><button data-key=" ">FOC</button></div></nav>
+<div id="touch" aria-label="Controls tàctils">
+ <div id="joystick" aria-label="Joystick de moviment"><div id="stick"></div></div>
+ <div id="touchActions"><button id="swap" type="button">Arma</button><button id="fireButton" type="button">FOC</button></div>
+</div>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
@@ -225,12 +238,13 @@ function updateNavigation(){
 function update(dt){
  const turn=+keys.has('arrowright')-keys.has('arrowleft');
  p.a+=turn*dt*2.3;
- const forward=+keys.has('w')+keys.has('arrowup')-keys.has('s')-keys.has('arrowdown'),strafe=+keys.has('d')-keys.has('a');
+ const forward=+keys.has('w')+keys.has('arrowup')-keys.has('s')-keys.has('arrowdown')-stickY;
+ const strafe=+keys.has('d')-keys.has('a')+stickX;
  const speed=dt*(keys.has('shift')?4.7:3.4)/Math.max(1,Math.hypot(forward,strafe));
  move(p,(Math.cos(p.a)*forward-Math.sin(p.a)*strafe)*speed,(Math.sin(p.a)*forward+Math.cos(p.a)*strafe)*speed,.19);
  p.z+=(floor(p.x,p.y)-p.z)*Math.min(1,dt*13);
  if(forward||strafe)elapsed+=dt*10;
- heat-=dt;flash-=dt;hurt-=dt;if(keys.has(' '))fire();
+ heat-=dt;flash-=dt;hurt-=dt;if(keys.has(' ')||firePointer!==null)fire();
  updateNavigation();
  for(const e of foes){
   e.hit-=dt;if(e.hp<=0){e.dead+=dt;continue}
@@ -617,22 +631,23 @@ function end(win){
  $('start').textContent=win?'Torna a la foneria':'Reintenta el nivell';
  $('menu').hidden=false;
  $('start').dataset.level=win?0:n;
- keys.clear();
+ keys.clear();resetTouch();
 }
-$('start').onclick=()=>{
+$('start').onclick=e=>{
  if(state!=='pause')level(Number($('start').dataset.level||0));
  state='playing';$('menu').hidden=true;document.body.classList.add('playing');initAudio();
- if(matchMedia('(pointer:fine)').matches)screen.requestPointerLock?.()?.catch?.(()=>{});
+ if(e?.pointerType!=='touch'&&matchMedia('(pointer:fine)').matches)screen.requestPointerLock?.()?.catch?.(()=>{});
 };
 $('mute').onclick=()=>{muted=!muted;if(music)music.gain.value=muted?0:.34;$('mute').textContent=muted?'♫ ×':'♫'};
 $('swap').onclick=()=>{const available=[...owned].sort((a,b)=>a-b);weapon=available[(available.indexOf(weapon)+1)%available.length]};
 function pause(){
  if(state!=='playing')return;
- state='pause';document.body.classList.remove('playing');keys.clear();
+ state='pause';document.body.classList.remove('playing');keys.clear();resetTouch();
  $('intro').textContent='WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma.';
  $('start').textContent='Continua';$('menu').hidden=false;
 }
-document.addEventListener('pointerlockchange',()=>{if(!document.pointerLockElement)pause()});
+let wasLocked=false;
+document.addEventListener('pointerlockchange',()=>{const locked=document.pointerLockElement===screen;if(wasLocked&&!locked)pause();wasLocked=locked});
 window.addEventListener('blur',pause);
 window.addEventListener('keydown',e=>{
  if(state!=='playing')return;
@@ -642,15 +657,51 @@ window.addEventListener('keydown',e=>{
  if(k==='escape')pause();
 });
 window.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
-let drag=null;
-screen.addEventListener('pointerdown',e=>{if(state!=='playing')return;if(e.pointerType==='mouse')fire();else{drag=e.clientX;screen.setPointerCapture(e.pointerId)}});
-screen.addEventListener('pointermove',e=>{if(state==='playing'&&drag!==null){p.a+=(e.clientX-drag)*.012;drag=e.clientX}});
-for(const ev of ['pointerup','pointercancel'])screen.addEventListener(ev,()=>{drag=null});
-document.addEventListener('mousemove',e=>{if(state==='playing'&&document.pointerLockElement===screen)p.a+=e.movementX*.003});
-document.querySelectorAll('[data-key]').forEach(b=>{
- b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);keys.add(b.dataset.key)};
- b.onpointerup=b.onpointercancel=b.onlostpointercapture=()=>keys.delete(b.dataset.key);
+const joystick=$('joystick'),stick=$('stick'),fireButton=$('fireButton');
+let movePointer=null,firePointer=null,lookPointer=null,lookX=0,stickX=0,stickY=0;
+function setStick(x,y,drawX,drawY){
+ stickX=x;stickY=y;
+ stick.style.setProperty('--stick-x',drawX+'px');
+ stick.style.setProperty('--stick-y',drawY+'px');
+}
+function updateStick(e){
+ const rect=joystick.getBoundingClientRect(),limit=rect.width*.30;
+ const dx=e.clientX-rect.left-rect.width/2,dy=e.clientY-rect.top-rect.height/2;
+ const distance=Math.hypot(dx,dy);
+ const amount=Math.max(0,Math.min(1,(distance/limit-.13)/.87));
+ const scale=distance?amount/distance:0;
+ const drawScale=distance?Math.min(1,limit/distance):0;
+ setStick(dx*scale,dy*scale,dx*drawScale,dy*drawScale);
+}
+function resetTouch(){
+ const captures=[[joystick,movePointer],[fireButton,firePointer],[screen,lookPointer]];
+ movePointer=firePointer=lookPointer=null;setStick(0,0,0,0);
+ for(const [element,id] of captures)if(id!==null&&element.hasPointerCapture(id))element.releasePointerCapture(id);
+}
+joystick.addEventListener('pointerdown',e=>{
+ if(state!=='playing'||movePointer!==null)return;
+ e.preventDefault();movePointer=e.pointerId;joystick.setPointerCapture(e.pointerId);updateStick(e);
 });
+joystick.addEventListener('pointermove',e=>{if(e.pointerId===movePointer)updateStick(e)});
+fireButton.addEventListener('pointerdown',e=>{
+ if(state!=='playing'||firePointer!==null)return;
+ e.preventDefault();firePointer=e.pointerId;fireButton.setPointerCapture(e.pointerId);fire();
+});
+screen.addEventListener('pointerdown',e=>{
+ if(state!=='playing')return;
+ if(e.pointerType==='mouse'){fire();return}
+ if(lookPointer!==null)return;
+ lookPointer=e.pointerId;lookX=e.clientX;screen.setPointerCapture(e.pointerId);
+});
+screen.addEventListener('pointermove',e=>{
+ if(state==='playing'&&e.pointerId===lookPointer){p.a+=(e.clientX-lookX)*.012;lookX=e.clientX}
+});
+for(const event of ['pointerup','pointercancel','lostpointercapture']){
+ joystick.addEventListener(event,e=>{if(e.pointerId===movePointer){movePointer=null;setStick(0,0,0,0)}});
+ fireButton.addEventListener(event,e=>{if(e.pointerId===firePointer)firePointer=null});
+ screen.addEventListener(event,e=>{if(e.pointerId===lookPointer)lookPointer=null});
+}
+document.addEventListener('mousemove',e=>{if(state==='playing'&&document.pointerLockElement===screen)p.a+=e.movementX*.003});
 prepareEnemies();
 level(0);let last=0;
 function frame(now){
