@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Ferro Feral — Dejoco Arts</title>
-<meta name="description" content="FPS retro de Dejoco Arts amb cinc nivells a diferents alçades.">
+<meta name="description" content="FPS retro de Dejoco Arts amb 25 nivells repartits en cinc mons.">
 <style>
 *{box-sizing:border-box}body{margin:0;background:#100c13;color:#fff0d0;font:16px monospace;overflow:hidden;touch-action:none}canvas{width:100vw;height:100dvh;object-fit:contain;image-rendering:pixelated;display:block}#menu{position:fixed;inset:0;display:grid;place-content:center;padding:24px;background:linear-gradient(90deg,#130c16ee,#35192166)}#menu[hidden]{display:none}h1{font-size:clamp(48px,11vw,144px);line-height:.8;margin:16px 0;color:#ff613f;text-shadow:4px 5px #5c211e;letter-spacing:-.09em}p{max-width:48ch;line-height:1.5}button{background:#ff6847;color:#160e17;border:0;padding:14px 20px;font:bold 16px monospace;cursor:pointer}#touch{display:none;position:fixed;inset:0;pointer-events:none;user-select:none;-webkit-user-select:none}
 @media(any-pointer:coarse){body.playing #touch{display:block}}
@@ -21,8 +21,8 @@
 #campaignLevels li{margin:6px 0}#campaignLevels button{padding:8px 12px;text-align:left}#campaignLevels button:disabled{opacity:.48;cursor:default}
 </style>
 <canvas id="screen" width="576" height="324" aria-label="Ferro Feral"></canvas>
-<section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">La foneria ha après a fabricar carn. Baixa cinc plantes i apaga el cor que l’alimenta.</p><p id="accountStatus" role="status" hidden></p><div id="menuActions"><button id="start">Entra a la foneria</button><button id="menuCampaign">Campanya</button><button id="accountButton" hidden>Entra amb Google</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
-<section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label>Volum dels efectes <input id="fxVolume" type="range" min="0" max="1" step=".05"></label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma Q per saltar i Esc per pausar.</p><p><b>Mòbil</b> · Bolet per moure’t, arrossega la vista per girar i toca FOC, Salt o Arma.</p><p><b>Comandament</b> · Estic esquerre per moure’t, dret per girar, RT per disparar, A per saltar, Y per canviar d’arma i Menú per pausar o continuar.</p></div><button id="menuBack">Torna</button></section></section>
+<section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">Travessa cinc mons, venç els guardians i reuneix les claus del Llindar.</p><p id="accountStatus" role="status" hidden></p><div id="menuActions"><button id="start">Inicia la campanya</button><button id="menuCampaign">Campanya</button><button id="accountButton" hidden>Entra amb Google</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
+<section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><label>Món <select id="worldSelect"></select></label><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label>Volum dels efectes <input id="fxVolume" type="range" min="0" max="1" step=".05"></label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma Q per saltar i Esc per pausar.</p><p><b>Mòbil</b> · Bolet per moure’t, arrossega la vista per girar i toca FOC, Salt o Arma.</p><p><b>Comandament</b> · Estic esquerre per moure’t, dret per girar, RT per disparar, A per saltar, Y per canviar d’arma i Menú per pausar o continuar.</p></div><button id="menuBack">Torna</button></section></section>
 <button id="pauseButton" type="button" aria-label="Pausa">Ⅱ</button>
 <button id="mute" aria-label="Activa o silencia la música">♫</button>
 <div id="touch" aria-label="Controls tàctils">
@@ -68,21 +68,35 @@ function level(index){
  const chapter=levels[n], rooms=Array.from({length:16},(_,i)=>[4+i%4*9,4+Math.floor(i/4)*9]);
  grid=Array.from({length:mapSize},()=>Array(mapSize).fill(1));
  heights=grid.map(row=>row.map(()=>0));
+ const biome=worlds[chapter.theme];
  const orderHeight=i=>chapter.terraces[Math.min(3,Math.floor(i*4/chapter.route.length))];
  const mark=(x,y,z)=>{grid[y][x]=0;heights[y][x]=z};
  chapter.route.forEach((id,i)=>{
   const [x,y]=rooms[id], large=chapter.arenas.includes(id)||i===chapter.route.length-1;
   const rx=large?3:2, ry=large?3:1+(id%3!==0);
-  for(let dy=-ry;dy<=ry;dy++)for(let dx=-rx;dx<=rx;dx++)mark(x+dx,y+dy,orderHeight(i));
+  for(let dy=-ry;dy<=ry;dy++)for(let dx=-rx;dx<=rx;dx++){
+   const ax=Math.abs(dx),ay=Math.abs(dy);
+   if(i!==chapter.route.length-1){
+    if(biome.shape==='octagon'&&ax===rx&&ay===ry)continue;
+    if(biome.shape==='cross'&&ax>1&&ay>1)continue;
+    if(biome.shape==='diamond'&&ax+ay>Math.max(rx,ry)+1)continue;
+    if(biome.shape==='courtyard'&&large&&ax===3&&ay===3)continue;
+   }
+   mark(x+dx,y+dy,orderHeight(i));
+  }
  });
  for(let i=1;i<chapter.route.length;i++){
   const [x,y]=rooms[chapter.route[i-1]],[ex,ey]=rooms[chapter.route[i]];
   const dx=Math.sign(ex-x),dy=Math.sign(ey-y);
   for(let j=1;j<9;j++){
    const cx=x+dx*j,cy=y+dy*j;
-   if(grid[cy][cx]===0)continue;
    const interpolation=j<=3?0:j>=6?1:(j-3)/3;
-   mark(cx,cy,orderHeight(i-1)+(orderHeight(i)-orderHeight(i-1))*interpolation);
+   const z=orderHeight(i-1)+(orderHeight(i)-orderHeight(i-1))*interpolation;
+   const edge=Math.floor(biome.corridor/2);
+   for(let lane=-edge;lane<=edge;lane++){
+    const lx=cx+dy*lane,ly=cy+dx*lane;
+    if(grid[ly][lx]!==0)mark(lx,ly,z);
+   }
   }
  }
  const [secretRoom,secretSide]=chapter.secret;
@@ -102,7 +116,7 @@ function level(index){
  });
  const [bx,by]=rooms[chapter.route.at(-1)];
  boss=spawn(bx,by,chapter.boss,foes.length);
- boss.homeX=boss.x;boss.homeY=boss.y;boss.maxHp=boss.hp=[125,185,220,265,340][n];
+ boss.homeX=boss.x;boss.homeY=boss.y;boss.maxHp=boss.hp=chapter.bossHealth;
  foes.push(boss);keyHeld=keyDropped=false;
  const [sx,sy]=rooms[chapter.route[0]],[nx,ny]=rooms[chapter.route[1]];
  p={x:sx+.5,y:sy+.5,a:Math.atan2(ny-sy,nx-sx),z:heights[sy][sx],groundZ:heights[sy][sx],jumpTime:0,hp:100,ammo:20};
@@ -121,7 +135,7 @@ function level(index){
  items.push([ex+.5,ey+2.5,'ammo']);
  if(n===0)owned.clear();
  owned.add(0);
- const arrivals=[[1],[2],[3],[4],[]][n];
+ const arrivals=[[1],[2],[3],[4],[]][chapter.stage];
  arrivals.forEach((id,i)=>{
   if(owned.has(id))return;
   const [x,y]=rooms[chapter.route[1+i*3]];
@@ -239,8 +253,8 @@ function score(dt){
  if(nextBeat<audio.currentTime-.15)nextBeat=audio.currentTime;
  while(nextBeat<audio.currentTime+.12){
   const i=step%16, bar=Math.floor(step/16)%4;
-  const root=[41.2,46.25,36.71,43.65,32.70][n]*2**([0,-2,3,-5][bar]/12);
-  const pitch=root*2**(riffs[levels[n].theme][i]/12);
+  const root=worlds[levels[n].theme].root*2**([0,-2,3,-5][bar]/12);
+  const pitch=root*2**(riffs[levels[n].theme%riffs.length][i]/12);
   if(i%4===0)tone(pitch,.33,.21,'triangle',nextBeat,stems.explore);
   if(i===0||i===6||i===12)tone(root*2**([24,31,27][i/6]/12),.38,.10,'sine',nextBeat,stems.explore);
   if(i!==7&&i!==15)tone(pitch*2,.115,.15,'sawtooth',nextBeat,stems.combat);
@@ -249,7 +263,7 @@ function score(dt){
   if(i%2===0)tone(pitch,.17,.26,'sawtooth',nextBeat,stems.boss);
   if(i===0||i===9)tone(root*8,.46,.15,'triangle',nextBeat,stems.boss,root*5.657);
   if(i%4===2)tone(112,.20,.45,'sine',nextBeat,stems.boss,29);
-  nextBeat+=60/[128,144,139,150,156][n]/4;step++;
+  nextBeat+=60/worlds[levels[n].theme].bpm/4;step++;
  }
 }
 function playVictory(){
@@ -368,7 +382,7 @@ function update(dt){
   if(wasWind>attackDuration*.48&&e.wind<=attackDuration*.48&&see&&d<range){
    if(melee&&d<.76)damage(kind==='charger'?21:12);
    else{
-    const base=Math.atan2(dy,dx), offsets=e===boss?(n===4?[-.40,-.20,0,.20,.40]:[-.20,0,.20]):kind==='burst'?[-.15,0,.15]:[0];
+    const base=Math.atan2(dy,dx), offsets=e===boss?(levels[n].stage===4?[-.40,-.20,0,.20,.40]:[-.20,0,.20]):kind==='burst'?[-.15,0,.15]:[0];
     for(const offset of offsets)shots.push({x:e.x,y:e.y,a:base+offset,altitude:floor(e.x,e.y)+.48,color:types[e.id][1],speed:kind==='sniper'?8:3.3,slope:(p.z+.44-floor(e.x,e.y)-.48)/d,ttl:4});
    }
   }
@@ -444,11 +458,7 @@ function applyQuality(){
  redraw=true;
 }
 applyQuality();
-const palettes=[
- [[116,63,48],[59,47,51],[43,26,34],[255,130,64]],
- [[49,93,98],[33,58,67],[26,42,53],[100,238,216]],
- [[103,46,77],[60,36,57],[46,25,41],[247,93,136]]
-];
+const palettes=worlds.map(world=>world.palette);
 
 function shade(rgb,light){
  const r=Math.min(255,rgb[0]*light)|0,g=Math.min(255,rgb[1]*light)|0,b=Math.min(255,rgb[2]*light)|0;
@@ -462,7 +472,7 @@ function lightAt(x,y){
  const row=Math.max(0,Math.min(lightSize-1,Math.floor(y*4)));
  return (row*lightSize+col)*3;
 }
-const glowColors=[[255,137,66],[91,226,250],[255,90,151]];
+const glowColors=worlds.map(world=>world.glow);
 const boltColor=[[102,229,255],[255,189,81],[255,212,101],[95,255,178],[255,91,65]];
 const reactorPulse=()=>Math.pow(Math.max(0,Math.cos(time*3.7)),9);
 function addLight(x,y,radius,power,color){
@@ -494,52 +504,52 @@ function lit(rgb,light,index,weight=1){
  const b=Math.min(255,rgb[2]*light+lighting[index+2]*weight)|0;
  return (255<<24)|(b<<16)|(g<<8)|r;
 }
-const wallMaterials=[
- [[130,84,68],[76,57,58],[169,104,66],[51,42,47]],
- [[76,117,123],[38,70,76],[94,154,146],[27,48,53]],
- [[112,68,87],[65,41,59],[163,72,94],[39,22,37]]
-];
-const wallTextures=wallMaterials.map((colors,chapter)=>{
- const tiles=[];
- for(let style=0;style<3;style++){
-  const texture=[];
-  for(let v=0;v<128;v++)for(let u=0;u<128;u++){
-   const row=v&63, col=u&63;
-   const grain=((u*13^v*61^(u*v))&31)/255;
-   const edge=Math.min(col,63-col,row,63-row);
-   const bolt=Math.min(Math.hypot(col-7,row-7),Math.hypot(col-56,row-7),Math.hypot(col-7,row-56),Math.hypot(col-56,row-56));
-   let ink=0,level=.90+grain;
-   if(edge<2){ink=3;level=.73}
-   else if(edge<4)level=col<32||row<32?1.22:.70;
-   if(bolt<3){ink=bolt<1.4?3:2;level=bolt<1.4?.64:1.15}
-   if(style===0&&row>19&&row<44){
-    const rib=(chapter===1?row:col)%8;
-    ink=rib<3?3:1;level=rib===3?1.30:.76+grain;
-   }
-   if(style===1&&col>20&&col<44){
-    const tube=(col-32)/12;
-    ink=row%24<4?2:1;level=.52+Math.max(0,1-tube*tube)*.78+grain;
-   }
-   if(style===2&&row>35&&row<47){
-    ink=((col+(row>>1))&15)>7?2:3;level=.8+grain;
-   }
-   if(edge>=4){
-    const scratch=((u*7+v*3+style*19)&127)===0;
-    const streak=((u*131+style*17)&31)<3&&row>13;
-    if(scratch)level+=.20;
-    if(streak)level*=.77;
-   }
-   texture.push(colors[ink].map(c=>Math.round(c*level)));
+const wallMaterials=worlds.map(world=>[world.palette[0],world.palette[1],world.palette[3],world.palette[2]]);
+function materialPixel(type,u,v,style){
+ const grain=((u*13^v*61^(u*v))&31)/255;
+ switch(type){
+  case 'timber': {
+   const plank=(u+style*4)&31;
+   const knot=Math.hypot(plank-14,(v&63)-30);
+   return [plank<2?3:0,.82+grain+Math.sin(u*.8+Math.sin(v*.12)*2+knot*.24)*.12];
   }
-  tiles.push(texture);
+  case 'circuit': {
+   const lane=(u+style*17)&31, strip=(v+style*9)&31;
+   const trace=(lane===5&&strip<24)||(strip===23&&lane<21);
+   return [trace?2:lane<2||strip<2?3:0,trace?.78:.76+grain];
+  }
+  case 'masonry': {
+   const row=v&15,col=(u+((v>>4)&1)*16)&31;
+   return [row<2||col<2?3:0,.72+grain+((u>>5^v>>4)&3)*.08];
+  }
+  case 'membrane': {
+   const vein=Math.sin(u*.13+Math.sin(v*.17)*2.8+style);
+   const nodes=Math.cos(v*.20-u*.13);
+   return [vein>.88?2:nodes<-.5?1:0,.57+grain+Math.abs(vein)*.30];
+  }
+  default: {
+   const shard=(u+v*2+style*19)&31,cut=(u*2-v)&63;
+   return [shard<2?2:cut<20?3:0,.65+grain+(shard>>3)*.13];
+  }
  }
- return tiles;
-});
+}
+const wallTextures=wallMaterials.map((colors,index)=>Array.from({length:3},(_,style)=>
+ Array.from({length:128*128},(_,pixel)=>{
+  const [ink,light]=materialPixel(worlds[index].material,pixel&127,pixel>>7,style);
+  return colors[ink].map(channel=>Math.min(255,Math.round(channel*light)));
+ })
+));
 function world(ca,sa,plane,eye){
- const theme=levels[n].theme;
+ const chapter=levels[n],theme=chapter.theme;
  const [,floorInk,roofInk,lamp]=palettes[theme];
  depth.fill(Infinity);
- pixels.fill(shade(roofInk,.24));
+ pixels.fill(shade(chapter.outdoors?worlds[theme].sky:roofInk,chapter.outdoors?1:.24));
+ if(chapter.outdoors){
+  for(let y=0;y<Math.min(H,Math.ceil(horizon));y++){
+   const intensity=.40+Math.min(1,y/Math.max(1,horizon))*.65;
+   pixels.fill(shade(worlds[theme].sky,intensity),y*W,(y+1)*W);
+  }
+ }
  for(let x=0;x<W;x++){
   const u=(2*x/W-1)*plane,dx=ca-sa*u,dy=sa+ca*u;
   let ix=Math.floor(p.x),iy=Math.floor(p.y),near=.004;
@@ -562,8 +572,8 @@ function world(ca,sa,plane,eye){
      const j=Math.floor(wx*32),k=Math.floor(wy*32);
      const seam=(j&31)<2||(k&31)<2;
      const grain=((j*13^k*31)&15)*.012;
-     const grate=n===1&&!isRoof&&(j&127)>52&&(j&127)<78;
-     const tread=!isRoof&&n===0&&((j+k)&15)<2&&((j-k)&15)<6;
+     const grate=theme===1&&!isRoof&&(j&127)>52&&(j&127)<78;
+     const tread=!isRoof&&theme===0&&((j+k)&15)<2&&((j-k)&15)<6;
      const wiring=isRoof&&(k&63)>48&&(k&63)<53;
      const panel=isRoof&&(j&127)>10&&(j&127)<15&&(k&127)>15&&(k&127)<79;
      const light=(1.05+grain-(seam?.33:0)+(tread?.19:0)-(grate&&k%5<3?.26:0))/(1+dist*.13);
@@ -573,7 +583,7 @@ function world(ca,sa,plane,eye){
     }
    };
    span(Math.min(face,top),Math.max(face,top),z,floorInk,false);
-   span(horizon+(eye-ceiling)*focal/near,roof,ceiling,roofInk,true);
+   if(!chapter.outdoors)span(horizon+(eye-ceiling)*focal/near,roof,ceiling,roofInk,true);
    if(side){iy+=sy;ty+=ay}else{ix+=sx;tx+=ax}
    const solid=grid[iy]?.[ix]!==0,next=heights[iy]?.[ix]??z;
    if(solid||next!==z){
@@ -589,7 +599,7 @@ function world(ca,sa,plane,eye){
      const row=Math.floor(altitude*96)&127;
      const style=((ix*19+iy*11)%3+3)%3;
      const u=(stripe*2+(Math.floor((edge-Math.floor(edge))*128)&1))&127;
-     const luminous=solid&&(row&63)>=41&&(row&63)<=43&&u>21&&u<106&&style===2;
+     const luminous=solid&&(theme===1||theme===4)&&(row&63)>=41&&(row&63)<=43&&u>21&&u<106&&style===2;
      const illumination=1.12/(1+d*.106)*(side?.78:1);
      const faceLight=lightAt(p.x+dx*(d-.025),p.y+dy*(d-.025));
      const texture=solid?wallTextures[theme][style][row*128+u]:wallMaterials[theme][((u+row*2)&31)<12?2:3];
@@ -621,7 +631,7 @@ const fixtureArt=glowColors.map(([r,g,b])=>{
  return c;
 });
 function drawAtmosphere(ca,sa,plane,eye,core){
- const sparks=n===1?'#c4fff1':n===2?'#ff8054':'#ffb86c';
+ const sparks=worlds[levels[n].theme].spark;
  const count=settings.particles?(core?77:43):0;
  for(let i=0;i<count;i++){
   const anchor=i<43?lamps[i%lamps.length]:[core.x,core.y];
@@ -753,7 +763,7 @@ function draw(){
  ctx.fillStyle='#100b17';ctx.fillRect(0,270-28,480,28);
  ctx.font='bold 11px monospace';ctx.fillStyle='#ff8b61';ctx.fillText('VIDA '+p.hp,10,270-10);
  ctx.fillStyle='#fff0d0';ctx.fillText((weapon+1)+' '+guns[weapon].name+' · '+p.ammo,78,270-10);
- ctx.fillStyle='#9ee9dd';ctx.textAlign='right';ctx.fillText((n+1)+'/'+levels.length+'  '+levels[n].name,470,270-10);ctx.textAlign='left';
+ ctx.fillStyle='#9ee9dd';ctx.textAlign='right';ctx.fillText((levels[n].theme+1)+'.'+(levels[n].stage+1)+'  '+levels[n].name,470,270-10);ctx.textAlign='left';
  ctx.fillStyle='#100b17d9';ctx.fillRect(8,8,200,31);
  ctx.fillStyle='#fff0d0';ctx.fillText(keyHeld?'CLAU OBTINGUDA · VES A LA SORTIDA':keyDropped?'RECULL LA CLAU':'DERROTA EL CAP I RECULL LA CLAU',14,20);
  if(!keyDropped&&Math.hypot(p.x-boss.x,p.y-boss.y)<8){
@@ -796,11 +806,21 @@ function completeLevel(){
 $('start').dataset.level=unlocked;
 if(unlocked>0)$('start').textContent='Continua la campanya';
 
-function showCampaign(){
+function showCampaign(worldIndex=Math.floor(unlocked/5)){
  $('campaignName').textContent=campaign.name;
+ const select=$('worldSelect');
+ select.replaceChildren(...worlds.map((world,index)=>{
+  const option=document.createElement('option');
+  option.value=index;
+  option.textContent=world.name+(index*5>unlocked?' · Bloquejat':'');
+  return option;
+ }));
+ select.value=worldIndex;
+ select.onchange=()=>showCampaign(Number(select.value));
  const list=$('campaignLevels');
  list.replaceChildren();
  campaign.levels.forEach((entry,index)=>{
+  if(entry.theme!==worldIndex)return;
   const row=document.createElement('li');
   const button=document.createElement('button');
   button.type='button';
@@ -817,7 +837,7 @@ function showCampaign(){
  });
  showMenuPanel('campaign');
 }
-$('menuCampaign').onclick=showCampaign;
+$('menuCampaign').onclick=()=>showCampaign();
 let account,sessionAccount=null,activeAccount=null,cloudBusy=false;
 const accountButton=$('accountButton');
 const accountStatus=$('accountStatus');
@@ -888,7 +908,7 @@ function activateAccount(user){
  unlocked=readCampaignProgress(progressStorage);
  records=readLevelRecords(progressStorage);
  $('start').dataset.level=unlocked;
- $('start').textContent=unlocked?'Continua la campanya':'Entra a la foneria';
+ $('start').textContent=unlocked?'Continua la campanya':'Inicia la campanya';
  if(!$('campaignPanel').hidden)showCampaign();
 }
 function updateAccount(user){
@@ -925,8 +945,8 @@ function end(win){
  showMenuPanel();$('menuRestart').hidden=!canRespawn;redraw=true;
  accountButton.disabled=false;
  state=canRespawn?'checkpoint':'end';document.body.classList.remove('playing');document.exitPointerLock?.();
- $('intro').textContent=win?'Has recuperat les cinc claus. La foneria torna a ser vostra.':canRespawn?'Pots tornar al punt de control o reiniciar el nivell.':'La foneria t’ha engolit. Pots tornar a provar el nivell.';
- $('start').textContent=win?'Torna a la foneria':canRespawn?'Torna al punt de control':'Reintenta el nivell';
+ $('intro').textContent=win?'Has derrotat els cinc guardians finals i segellat el Llindar.':canRespawn?'Pots tornar al punt de control o reiniciar el nivell.':'La foneria t’ha engolit. Pots tornar a provar el nivell.';
+ $('start').textContent=win?'Torna a l’Illa Maleïda':canRespawn?'Torna al punt de control':'Reintenta el nivell';
  $('menu').hidden=false;
  $('start').dataset.level=win?0:n;
  keys.clear();resetTouch();

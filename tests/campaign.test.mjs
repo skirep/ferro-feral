@@ -8,10 +8,10 @@ const source = read('../campaign.js');
 const html = read('../index.html');
 const game = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const {
-  levels, readCampaignProgress, saveCampaignProgress,
+  worlds, levels, readCampaignProgress, saveCampaignProgress,
   calculateLevelScore, readLevelRecords, saveLevelRecord
 } = runInNewContext(source + `
-  ({levels, readCampaignProgress, saveCampaignProgress,
+  ({worlds, levels, readCampaignProgress, saveCampaignProgress,
     calculateLevelScore, readLevelRecords, saveLevelRecord})
 `);
 
@@ -81,4 +81,19 @@ test('a personal record prefers points, then faster time, and survives reload', 
   ]) records = saveLevelRecord(storage, records, 0, result);
   assert.equal(readLevelRecords(storage)[0].points, 5000);
   assert.equal(readLevelRecords(storage)[0].seconds, 40);
+});
+
+test('the campaign has five themed worlds with five authored routes apiece', () => {
+  assert.equal(worlds.length, 5);
+  assert.equal(new Set(worlds.map(world => world.material)).size, 5);
+  assert.equal(levels.length, 25);
+  assert.equal(new Set(levels.map(level => level.route.join(','))).size, 25);
+  for (let index = 0; index < worlds.length; index++) {
+    const stages = levels.filter(level => level.theme === index);
+    assert.equal(stages.length, 5);
+    assert.ok(stages.every((level, stage) => level.stage === stage && level.bossHealth > 0));
+  }
+  const storage = memoryStorage();
+  assert.equal(saveCampaignProgress(storage, 4, 4), 5);
+  assert.equal(saveCampaignProgress(storage, 24, 24), 24);
 });
