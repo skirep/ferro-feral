@@ -27,10 +27,10 @@ function saveCampaignProgress(storage,completed,nextUnlocked){
  return unlocked;
 }
 
-function calculateLevelScore({normal,special,shots,hits,seconds,damageTaken,secrets=0}){
+function calculateLevelScore({normal,special,shots,hits,seconds,damageTaken,secrets=0,deaths=0}){
  const timeBonus=Math.max(0,600-Math.floor(seconds)*5);
  const accuracyBonus=shots?Math.round(400*hits/shots):0;
- return secrets*500+normal*100+special*250+2000+1000+1500+(damageTaken?0:2500)+timeBonus+accuracyBonus;
+ return secrets*500+normal*100+special*250+2000+1000+(deaths?0:1500)+(damageTaken||deaths?0:2500)+timeBonus+accuracyBonus;
 }
 function readLevelRecords(storage){
  try{
