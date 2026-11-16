@@ -69,7 +69,7 @@ function level(index){
  heights=grid.map((row,y)=>row.map((_,x)=>n===0?Math.min(.6,Math.max(0,x-10)*.1):n===1?-Math.min(.64,Math.max(0,y-8)*.08):Math.min(.72,Math.max(0,x-8)*.09)));
  foes=chapter.roster.map((id,i)=>{
   const [x,y]=rooms[chapter.route[2+Math.floor(i*13/(chapter.roster.length-1))]];
-  return {x:x+.5,y:y+.5,id,hp:types[id][3],phase:i*.71,reload:1+i*.1,hit:0,dead:0,wind:0};
+  return {x:x+.5,y:y+.5,id,hp:types[id][3],phase:i*.71,reload:1+i*.1,hit:0,dead:0,wind:0,facing:i*1.7,jump:0,jumpWait:1+i*.43,travel:0,run:false};
  });
  const [sx,sy]=rooms[chapter.route[0]],[nx,ny]=rooms[chapter.route[1]];
  p={x:sx+.5,y:sy+.5,a:Math.atan2(ny-sy,nx-sx),z:heights[sy][sx],hp:100,ammo:20};
@@ -115,65 +115,77 @@ function ray(x,y,dx,dy,startZ,endZ,distance){
  }
  return false;
 }
-const portraits = new Image();
-const atlas = [];
-const floating = new Set([3,6,9]);
-
-function sprite(id,pose,frame){
+const portraits=new Image(),turnarounds=new Image();
+const atlas=new Map();
+const floating=new Set([3,6,9]);
+const jumpDuration=.76;
+function facingView(facing,bearing){
+ return (Math.round(angle(bearing-facing)*4/Math.PI)+8)%8;
+}
+function hopHeight(e){
+ return e.jump>0?.45*Math.sin(Math.PI*e.jump/jumpDuration):0;
+}
+function sprite(id,pose,frame,view){
+ const key=(((id*8+view)*7+['idle','walk','run','jump','shoot','hit','death'].indexOf(pose))*12+frame);
+ if(atlas.has(key))return atlas.get(key);
+ if(atlas.size>=480)atlas.delete(atlas.keys().next().value);
  const c=document.createElement('canvas');c.width=c.height=128;
- const g=c.getContext('2d');
- g.imageSmoothingEnabled=false;
- const cycle=frame/12*Math.PI*2;
- const progress=frame/11;
- const walking=pose==='walk', attacking=pose==='attack', dying=pose==='death', stagger=pose==='hit';
- const recoil=attacking?Math.sin(progress*Math.PI)**2:0;
- const swing=Math.sin(cycle);
- const hover=floating.has(id)?Math.sin(cycle)*3.6:0;
- const bob=walking?-Math.abs(swing)*5.2:Math.sin(cycle)*1.5;
- const sx=id%5*112;
- const group=Math.floor(id/5);
- const poseRow=walking?(frame<2||frame===6||frame===7?0:frame<6?1:2)
-  :attacking&&frame>=3&&frame<=9?3:dying&&frame<4?3:0;
- const sy=(group+poseRow*2)*112;
- const side=id%2===0?1:-1;
- g.translate(64,120+hover+bob);
- if(stagger){g.translate(side*(1-progress)*7,0);g.rotate(side*(1-progress)*.18)}
- if(dying){
-  g.translate(side*progress*10,0);
-  g.rotate(side*progress*.42);
+ const g=c.getContext('2d');g.imageSmoothingEnabled=false;
+ const t=frame/11,cycle=frame*Math.PI/6;
+ const run=pose==='run',step=pose==='walk'||run,jump=pose==='jump';
+ const shot=pose==='shoot',firing=shot&&frame>=6&&frame<=8;
+ const die=pose==='death',hit=pose==='hit';
+ const swing=Math.sin(cycle),lift=Math.sin(t*Math.PI);
+ const recoil=firing?1-(frame-6)*.23:0;
+ const side=view===0||view===4?0:view<4?1:-1;
+ const directional=Math.min(view,8-view);
+ const original=view===0&&(step||shot||pose==='idle'||hit||die||jump);
+ const poseRow=step?(frame%6<2?0:frame<6?1:2):shot&&frame>=4&&frame<=9?3:0;
+ const sx=id%5*112,sy=original?(Math.floor(id/5)+poseRow*2)*112:(Math.floor(id/5)*5+directional)*112;
+ const art=original?portraits:turnarounds;
+ const bob=step?-Math.abs(swing)*(run?7:4):floating.has(id)?swing*2:0;
+ g.translate(64-side*recoil*6,119+bob);
+ if(die){g.translate(8*t,0);g.rotate(t*.49)}
+ if(hit){g.translate((side||1)*5*(1-t),0);g.rotate((side||1)*.15*(1-t))}
+ if(view>=5)g.scale(-1,1);
+ g.scale(1+(jump?.13*lift:0),die?1-.81*t:jump?1-.20*lift:1+recoil*.08);
+ const stride=step?swing*(run?15:8):0;
+ const lean=step&&run&&side?6:shot?5-recoil*10:0;
+ for(let row=0;row<112;row++){
+  const body=Math.min(1,(112-row)/62);
+  const knee=Math.max(0,(row-63)/49);
+  const x=-56+Math.round(lean*body);
+  if((step||jump)&&row>=60&&!floating.has(id)){
+   const movement=jump?lift*6:stride;
+   g.drawImage(art,sx,sy+row,56,1,x+Math.round(movement*knee),row-112,56,1);
+   g.drawImage(art,sx+56,sy+row,56,1,x+56-Math.round(movement*knee),row-112,56,1);
+  }else{
+   g.drawImage(art,sx,sy+row,112,1,x,row-112,112,1);
+  }
  }
- g.scale(dying?1+progress*.09:1+recoil*.07,dying?1-.79*progress:1+recoil*.10);
- const lunge=attacking?side*recoil*5:walking?swing*4:0;
- g.drawImage(portraits,sx,sy,112,112,-56+lunge,-112,112,112);
- if(recoil>.55){
-  g.globalCompositeOperation='source-atop';
-  g.fillStyle='rgba(255,154,92,'+recoil*.22+')';
-  g.fillRect(-64,-110,128,110);
+ if(firing&&view!==4){
+  const muzzle=side?39:12, y=id===0||id===5||id===7?-43:-67;
+  g.fillStyle=types[id][1];g.fillRect(muzzle-7,y-2,14,5);
+  g.fillRect(muzzle-2,y-7,5,15);
+  g.fillStyle='#fff9ca';g.fillRect(muzzle-2,y-2,6,5);
  }
+ atlas.set(key,c);
  return c;
 }
-function buildEnemyFrames(){
- const poses=['idle','walk','attack','hit','death'];
- for(let id=0;id<types.length;id++){
-  atlas[id]=Object.fromEntries(poses.map(pose=>[pose,Array.from({length:12},(_,frame)=>sprite(id,pose,frame))]));
- }
-}
+let enemiesReady=false;
 function prepareEnemies(){
- const button=$('start');
- const label=button.textContent;
- button.disabled=true;
- button.textContent='Preparant els enemics…';
- portraits.onload=()=>{
-  buildEnemyFrames();
-  button.disabled=false;
-  button.textContent=label;
- };
- portraits.onerror=()=>{
+ const button=$('start'),label=button.textContent;
+ button.disabled=true;button.textContent='Preparant els enemics…';
+ let remaining=2;
+ const ready=()=>{if(--remaining===0){enemiesReady=true;button.disabled=false;button.textContent=label}};
+ const failed=()=>{
   button.textContent='Recarrega per tornar-ho a provar';
-  button.disabled=false;
-  button.onclick=()=>location.reload();
+  button.disabled=false;button.onclick=()=>location.reload();
  };
+ portraits.onload=turnarounds.onload=ready;
+ portraits.onerror=turnarounds.onerror=failed;
  portraits.src='./assets/enemies.webp?v=moviment';
+ turnarounds.src='./assets/enemies-360.webp?v=1';
 }
 function initAudio(){
  if(!audio){
@@ -219,7 +231,7 @@ function fire(){
  if(audio)tone(gun.sound,weapon===1?.24:.16,.7,'sawtooth',audio.currentTime,fx,29);
  const targets=foes.filter(e=>{
   const dx=e.x-p.x,dy=e.y-p.y,d=Math.hypot(dx,dy)||.001;
-  return e.hp>0&&d<gun.range&&Math.abs(angle(Math.atan2(dy,dx)-p.a))<Math.atan2(.30,d)+gun.spread&&ray(p.x,p.y,dx/d,dy/d,p.z+.5,floor(e.x,e.y)+.52,d);
+  return e.hp>0&&d<gun.range&&Math.abs(angle(Math.atan2(dy,dx)-p.a))<Math.atan2(.30,d)+gun.spread&&ray(p.x,p.y,dx/d,dy/d,p.z+.5,floor(e.x,e.y)+.52+hopHeight(e),d);
  }).sort((a,b)=>Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y));
  targets.slice(0,gun.targets).forEach((e,i)=>{
   const distance=Math.hypot(e.x-p.x,e.y-p.y);
@@ -266,15 +278,17 @@ function update(dt){
   e.hit-=dt;if(e.hp<=0){e.dead+=dt;continue}
   const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy)||.001,kind=types[e.id][2],see=ray(e.x,e.y,dx/d,dy/d,floor(e.x,e.y)+.48,p.z+.44,d);
   const melee=kind==='runner'||kind==='charger'||kind==='ghost';
-  const range=melee?.75:kind==='sniper'?11:6;
+  const range=melee?2.2:kind==='sniper'?11:6;
+  e.jump=Math.max(0,e.jump-dt);e.jumpWait-=dt;
+  if(see&&(e.wind>0||d<9))e.facing=Math.atan2(dy,dx);
   if(e.hit>0)e.wind=0;
   const wasWind=e.wind;
   e.reload-=dt;e.wind=Math.max(0,e.wind-dt);
-  if(see&&d<range&&e.reload<=0){
+  if(see&&d<range&&e.reload<=0&&e.jump<=0){
    e.wind=.54;e.reload=kind==='sniper'?2.5:kind==='burst'?.85:1.45;
   }
   if(wasWind>.25&&e.wind<=.25&&see&&d<range){
-   if(melee)damage(kind==='charger'?21:12);
+   if(melee&&d<.76)damage(kind==='charger'?21:12);
    else{
     const base=Math.atan2(dy,dx), offsets=kind==='boss'?[-.35,-.17,0,.17,.35]:kind==='burst'?[-.15,0,.15]:[0];
     for(const offset of offsets)shots.push({x:e.x,y:e.y,a:base+offset,altitude:floor(e.x,e.y)+.48,color:types[e.id][1],speed:kind==='sniper'?8:3.3,slope:(p.z+.44-floor(e.x,e.y)-.48)/d,ttl:4});
@@ -284,13 +298,20 @@ function update(dt){
   const pathLength=roomDistance.values[y*mapSize+x];
   e.walk=see?d<9&&d>(melee?.57:kind==='sniper'?7:3):pathLength>0&&pathLength<=10;
   if(e.wind>0||(kind==='boss'&&!see))e.walk=false;
+  e.run=e.walk&&see&&d>2.8;
+  if(e.run&&d<6&&e.jumpWait<=0&&e.jump<=0){
+   e.jump=jumpDuration;e.jumpWait=6+e.phase%2.4;
+  }
+  if(e.walk)e.travel+=dt*(e.run?19:12);
+
   if(e.walk&&d>.05){
-   const speed=([2.4,1.2,2,2.1,1, .87,2.1,1,1.3,1.1][e.id]+(kind==='charger'&&see?1:0))*dt;
+   const speed=([2.4,1.2,2,2.1,1, .87,2.1,1,1.3,1.1][e.id]+(kind==='charger'&&see?1:0))*dt*(e.run?1.43:1)*(e.jump>0?1.16:1);
    if(!see){
     const next=neighbors.find(([ox,oy])=>grid[y+oy]?.[x+ox]===0&&roomDistance.values[(y+oy)*mapSize+x+ox]===pathLength-1);
     if(next){
      const vx=x+next[0]+.5-e.x,vy=y+next[1]+.5-e.y,dist=Math.hypot(vx,vy);
-     move(e,vx/dist*speed,vy/dist*speed,.21);
+     e.facing=Math.atan2(vy,vx);
+     if(dist>0)move(e,vx/dist*Math.min(dist,speed),vy/dist*Math.min(dist,speed),.21);
     }
     continue;
    }
@@ -517,10 +538,14 @@ function draw(){
  world(ca,sa,plane,eye);
  const scene=lamps.map(([x,y])=>({x,y,art:fixtureArt[n],size:.50,altitude:ceiling-.51,fixture:true}));
  for(const e of foes){
-  if(!atlas[e.id])continue;
-  const pose=e.hp<=0?'death':e.hit>0?'hit':e.wind>0?'attack':e.walk?'walk':'idle';
-  const frame=pose==='death'?Math.min(11,Math.floor(e.dead*21)):pose==='attack'?Math.min(11,Math.floor((.54-e.wind)*22.23)):pose==='hit'?Math.min(11,Math.floor((.17-e.hit)*70)):Math.floor((time*(e.walk?18:9)+e.phase*12)%12);
-  scene.push({x:e.x,y:e.y,art:atlas[e.id][pose][frame],size:e.id===9?1.48:1,hit:e.hit>0,enemy:e.id});
+  if(!enemiesReady)continue;
+  const pose=e.hp<=0?'death':e.hit>0?'hit':e.jump>0?'jump':e.wind>0?'shoot':e.run?'run':e.walk?'walk':'idle';
+  const elapsedFrame=pose==='death'?e.dead*21:pose==='shoot'?(1-e.wind/.54)*12:pose==='hit'?(1-e.hit/.17)*12:pose==='jump'?(1-e.jump/jumpDuration)*12:(pose==='idle'?time*9+e.phase*12:e.travel)%12;
+  const frame=Math.max(0,Math.min(11,Math.floor(elapsedFrame)));
+  const view=facingView(e.facing,Math.atan2(p.y-e.y,p.x-e.x));
+  scene.push({x:e.x,y:e.y,art:sprite(e.id,pose,frame,view),size:e.id===9?1.48:1,
+   offset:e.hp>0?hopHeight(e):0,hit:e.hit>0,enemy:e.id});
+
  }
  for(const s of shots)scene.push({...s,size:.14,offset:.50});
  for(const [x,y,kind,id] of items){
