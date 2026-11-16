@@ -41,7 +41,7 @@
 <script src="./account.js"></script>
 <script src="./supabase-config.js"></script>
 <script src="./assets/enemies/catalog.js"></script>
-<script src="./assets/enemies/sprites.js"></script>
+<script src="./assets/enemies/sprites.js?v=illustrated1"></script>
 <script src="./assets/combat.js"></script>
 <script src="./assets/music.js"></script>
 <script>
@@ -683,10 +683,12 @@ function draw(){
   }
   if(hasArt){
    if(visible){
-    ctx.clip();
     const frame=o.foe?ferroEnemySprites.get(o.foe.type,o.foe.view,o.pose,o.frame):o.art;
-    const size=o.frameSize??frame.width;
-    ctx.drawImage(frame,o.frameX??0,o.frameY??0,size,size,left,top,w,h);
+    if(frame){
+     ctx.clip();
+     const size=o.frameSize??frame.width;
+     ctx.drawImage(frame,o.frameX??0,o.frameY??0,size,size,left,top,w,h);
+    }
    }
    ctx.restore();
   }
@@ -751,6 +753,7 @@ $('start').dataset.level=worldProgress[0];
 if(worldProgress[0]>0)$('start').textContent='Continua la campanya';
 
 function showCampaign(worldIndex=levels[n].theme){
+ ferroEnemySprites.prepare(worldIndex).catch(()=>{});
  $('campaignName').textContent=campaign.name;
  const select=$('worldSelect');
  select.replaceChildren(...worlds.map((world,index)=>{
@@ -895,8 +898,10 @@ function end(win){
  $('start').dataset.level=win?0:n;
  keys.clear();resetTouch();
 }
+let loadingEnemyArt=false;
 $('start').onclick=e=>{
  if(state==='world-clear'){showCampaign();return}
+ if(loadingEnemyArt)return;
  showMenuPanel();$('menuRestart').hidden=true;
  if(state==='checkpoint'){
   attempt.deaths++;
@@ -909,6 +914,25 @@ $('start').onclick=e=>{
   if(activeAccount!==sessionAccount)activateAccount(sessionAccount);
   const requested=unlockedLevel(Number($('start').dataset.level));
   const selected=levelAvailable(worldProgress,requested)?requested:worldProgress[0];
+  const theme=levels[selected].theme;
+  if(!ferroEnemySprites.ready(theme)){
+   const start=$('start'),label=start.textContent;
+   loadingEnemyArt=true;
+   start.disabled=true;
+   start.textContent='Carregant els sprites…';
+   ferroEnemySprites.prepare(theme).then(()=>{
+    loadingEnemyArt=false;
+    start.disabled=false;
+    start.textContent=label;
+    start.onclick(e);
+   },()=>{
+    loadingEnemyArt=false;
+    start.disabled=false;
+    start.textContent=label;
+    $('intro').textContent='No s’han pogut carregar els sprites. Torna a provar-ho.';
+   });
+   return;
+  }
   owned.clear();
   for(let id=0;id<=selected&&id<5;id++)owned.add(id);
   level(selected);
@@ -1016,6 +1040,7 @@ for(const event of ['pointerup','pointercancel','lostpointercapture']){
 document.addEventListener('mousemove',e=>{if(state==='playing'&&document.pointerLockElement===screen)p.a+=e.movementX*.003});
 prepareWeapon();
 loadSurfaceTextures();
+ferroEnemySprites.prepare(0).then(()=>{redraw=true}).catch(()=>{});
 level(0);let last=0;
 let padMoveX=0,padMoveY=0,padTurn=0,padFire=false;
 let padButtonMask=0,padIndex=-1;
