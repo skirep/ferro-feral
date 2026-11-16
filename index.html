@@ -16,9 +16,12 @@
 #touchActions #fireButton{width:clamp(77px,19vw,112px);min-height:0;aspect-ratio:1;border-radius:50%;background:#8d3829e6;font-size:20px}
 #touchActions button:active{background:#c4603e}
 #mute{position:fixed;right:10px;top:10px;padding:8px;background:#21141c;color:#fff0d0}
+#menu{overflow:auto;align-content:safe center}#menuActions[hidden]{display:none}#menuActions{display:flex;flex-wrap:wrap;gap:8px;max-width:540px}#menuActions button:not(#start),#menuBack{background:#2f2534;color:#fff0d0;border:1px solid #aa7766}#menuPanel{max-width:540px;background:#1b1320;padding:16px;border:1px solid #a66c57}#menuPanel h2{margin:0 0 9px;font-size:20px}#menuPanel label{display:block;margin:12px 0}#menuPanel select{background:#362634;color:#fff0d0;padding:5px}#menuPanel p{margin:8px 0}#pauseButton{position:fixed;right:62px;top:10px;padding:8px 12px;background:#21141c;color:#fff0d0;display:none}body.playing #pauseButton{display:block}
 </style>
 <canvas id="screen" width="576" height="324" aria-label="Ferro Feral"></canvas>
-<section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">La foneria ha après a fabricar carn. Baixa tres plantes i apaga el cor que l’alimenta.</p><button id="start">Entra a la foneria</button></section>
+<section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">La foneria ha après a fabricar carn. Baixa tres plantes i apaga el cor que l’alimenta.</p><div id="menuActions"><button id="start">Entra a la foneria</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
+<section id="menuPanel" hidden><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma i Esc per pausar.</p><p><b>Mòbil</b> · Bolet per moure’t, arrossega la vista per girar i toca FOC o Arma.</p></div><button id="menuBack">Torna</button></section></section>
+<button id="pauseButton" type="button" aria-label="Pausa">Ⅱ</button>
 <button id="mute" aria-label="Activa o silencia la música">♫</button>
 <div id="touch" aria-label="Controls tàctils">
  <div id="joystick" aria-label="Joystick de moviment"><div id="stick"></div></div>
@@ -27,7 +30,8 @@
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
-const screen=$('screen'), ctx=screen.getContext('2d'), W=576,H=324;
+const screen=$('screen'), ctx=screen.getContext('2d');
+let W=576,H=324;
 ctx.imageSmoothingEnabled=false;
 const types=[
  ['Corc de coure','#df965e','runner',24],['Càntir cec','#9cd460','spitter',33],
@@ -44,59 +48,64 @@ const guns=[
  {name:'Forn de Butxaca',damage:105,rate:.72,cost:3,color:'#ff6944',spread:.12,range:10,targets:1,sound:68}
 ];
 const levels=[
- {name:'El torn de nit',route:[0,1,2,3,7,6,5,4,8,9,10,11,15,14,13,12], roster:[0,0,1,0,2,1,0,2,1,2], alcoves:[[2,0,1],[6,-1,0],[10,0,1]]},
- {name:'La cisterna cega',route:[0,4,8,12,13,9,5,1,2,6,10,14,15,11,7,3], roster:[3,4,3,5,6,4,5,3,6,5,4,6], alcoves:[[4,1,0],[9,1,0],[11,-1,0]]},
- {name:'El cor de ferro',route:[0,1,2,3,7,11,15,14,13,12,8,4,5,6,10,9], roster:[7,6,8,7,8,5,7,8,6,7,8,9], alcoves:[[1,0,1],[13,0,-1],[4,1,0]]}
+ {name:'El torn de nit',route:[0,1,2,3,7,6,5,9,10,11,15], roster:[0,1,0,2,1,2], arenas:[2,9], boss:2,bossName:'El Botxí de Bronze',theme:0,terraces:[0,.42,.14,.68]},
+ {name:'La cisterna cega',route:[0,4,8,12,13,9,5,6,10,14,15,11], roster:[3,4,3,5,6,4,5,6], arenas:[8,10], boss:5,bossName:'La Caldera Cega',theme:1,terraces:[0,-.48,-.19,.36]},
+ {name:'El bastió de vidre',route:[0,1,5,4,8,12,13,9,10,6,7,11,15], roster:[6,7,3,7,8,5,7,8], arenas:[5,10],boss:8,bossName:'El Custodi del Bastió',theme:2,terraces:[0,.36,.74,.23]},
+ {name:'El pou de les màquines',route:[0,4,5,1,2,3,7,6,10,9,13,14,15],roster:[2,5,7,6,8,5,7,6,8],arenas:[7,13],boss:6,bossName:'El Bessó de Mercuri',theme:1,terraces:[.28,-.44,.15,.60]},
+ {name:'El cor de ferro',route:[0,1,2,3,7,11,10,6,5,4,8,9,13,14,15],roster:[7,8,5,6,7,2,8,7,8,5],arenas:[6,13],boss:9,bossName:'El Cor de la Foneria',theme:2,terraces:[0,.52,-.12,.82]}
 ];
-const mapSize=29;
+const mapSize=37;
 const keys=new Set();
-let n=0,grid,heights,foes,shots,items,p,weapon,heat,flash,hurt,exitPoint,lamps,ceiling,pickupNotice,pickupTime;
+let n=0,grid,heights,foes,shots,items,p,weapon,heat,flash,hurt,exitPoint,lamps,ceiling,pickupNotice,pickupTime,boss,keyHeld,keyDropped;
 const owned=new Set([0]);
 let state='menu',time=0,elapsed=0,roomDistance;
 let audio, music, fx, step=0, nextBeat=0, muted=false;
 function level(index){
  n=index;
- const chapter=levels[n], rooms=Array.from({length:16},(_,i)=>[3+i%4*7,3+Math.floor(i/4)*7]);
+ const chapter=levels[n], rooms=Array.from({length:16},(_,i)=>[4+i%4*9,4+Math.floor(i/4)*9]);
  grid=Array.from({length:mapSize},()=>Array(mapSize).fill(1));
- function carve(cx,cy,rx,ry){
-  for(let y=cy-ry;y<=cy+ry;y++)for(let x=cx-rx;x<=cx+rx;x++)grid[y][x]=0;
- }
- rooms.forEach(([x,y],i)=>{
-  if(chapter.route.at(-1)===i)carve(x,y,2,2);
-  else carve(x,y,n===1&&i%3===0?1:2,n===2&&i%3!==0?1:2);
+ heights=grid.map(row=>row.map(()=>0));
+ const orderHeight=i=>chapter.terraces[Math.min(3,Math.floor(i*4/chapter.route.length))];
+ const mark=(x,y,z)=>{grid[y][x]=0;heights[y][x]=z};
+ chapter.route.forEach((id,i)=>{
+  const [x,y]=rooms[id], large=chapter.arenas.includes(id)||i===chapter.route.length-1;
+  const rx=large?3:2, ry=large?3:1+(id%3!==0);
+  for(let dy=-ry;dy<=ry;dy++)for(let dx=-rx;dx<=rx;dx++)mark(x+dx,y+dy,orderHeight(i));
  });
- const passages=chapter.route.slice(1).map((id,i)=>[chapter.route[i],id]);
- for(const [from,to] of passages){
-  const [x,y]=rooms[from],[ex,ey]=rooms[to];
-  if(x!==ex&&y!==ey)continue;
-  for(let j=Math.min(y,ey);j<=Math.max(y,ey);j++)for(let i=Math.min(x,ex);i<=Math.max(x,ex);i++)grid[j][i]=0;
- }
- for(const [room,dx,dy] of chapter.alcoves){
-  const [x,y]=rooms[room];
-  if(grid[y+dy*3]?.[x+dx*3]===1){
-   grid[y+dy*3][x+dx*3]=0;
-   grid[y+dy*2][x+dx*2]=0;
+ for(let i=1;i<chapter.route.length;i++){
+  const [x,y]=rooms[chapter.route[i-1]],[ex,ey]=rooms[chapter.route[i]];
+  const dx=Math.sign(ex-x),dy=Math.sign(ey-y);
+  for(let j=1;j<9;j++){
+   const cx=x+dx*j,cy=y+dy*j;
+   if(grid[cy][cx]===0)continue;
+   const interpolation=j<=3?0:j>=6?1:(j-3)/3;
+   mark(cx,cy,orderHeight(i-1)+(orderHeight(i)-orderHeight(i-1))*interpolation);
   }
  }
- ceiling=[1.92,1.76,2.02][n];
- heights=grid.map((row,y)=>row.map((_,x)=>n===0?Math.min(.6,Math.max(0,x-10)*.1):n===1?-Math.min(.64,Math.max(0,y-8)*.08):Math.min(.72,Math.max(0,x-8)*.09)));
+ ceiling=2.58;
+ const spawn=(x,y,id,i)=>({x:x+.5,y:y+.5,id,hp:types[id][3],phase:i*.71,reload:1+i*.1,hit:0,dead:0,wind:0,facing:i*1.7,jump:0,travel:0,run:false});
  foes=chapter.roster.map((id,i)=>{
-  const [x,y]=rooms[chapter.route[2+Math.floor(i*13/(chapter.roster.length-1))]];
-  return {x:x+.5,y:y+.5,id,hp:types[id][3],phase:i*.71,reload:1+i*.1,hit:0,dead:0,wind:0,facing:i*1.7,jump:0,jumpWait:1+i*.43,travel:0,run:false};
+  const [x,y]=rooms[chapter.route[2+Math.floor(i*(chapter.route.length-4)/Math.max(1,chapter.roster.length-1))]];
+  return spawn(x,y,id,i);
  });
+ const [bx,by]=rooms[chapter.route.at(-1)];
+ boss=spawn(bx,by,chapter.boss,foes.length);
+ boss.homeX=boss.x;boss.homeY=boss.y;boss.maxHp=boss.hp=[125,185,220,265,340][n];
+ foes.push(boss);keyHeld=keyDropped=false;
  const [sx,sy]=rooms[chapter.route[0]],[nx,ny]=rooms[chapter.route[1]];
  p={x:sx+.5,y:sy+.5,a:Math.atan2(ny-sy,nx-sx),z:heights[sy][sx],hp:100,ammo:20};
  shots=[];heat=flash=hurt=0;
  const [ex,ey]=rooms[chapter.route.at(-1)];
- exitPoint=[ex+1.5,ey+.5];
+ exitPoint=[ex+2.5,ey+.5];
  items=[[...exitPoint,'exit']];
- for(const [order,kind] of [[2,'ammo'],[4,'hp'],[6,'ammo'],[8,'hp'],[10,'ammo'],[12,'hp'],[14,'ammo']]){
-  const [x,y]=rooms[chapter.route[order]];
-  items.push([x-.5,y+.5,kind]);
+ for(let i=2;i<chapter.route.length-1;i+=2){
+  const [x,y]=rooms[chapter.route[i]];
+  items.push([x-.5,y+.5,i%4?'ammo':'hp']);
  }
+ items.push([ex+.5,ey+2.5,'ammo']);
  if(n===0)owned.clear();
  owned.add(0);
- const arrivals=[[1],[2,3],[4]][n];
+ const arrivals=[[1],[2],[3],[4],[]][n];
  arrivals.forEach((id,i)=>{
   if(owned.has(id))return;
   const [x,y]=rooms[chapter.route[1+i*3]];
@@ -104,7 +113,8 @@ function level(index){
  });
  weapon=Array.from(owned).at(-1);step=0;
  pickupTime=0;pickupNotice='';
- lamps=chapter.route.filter((_,i)=>i%2===0||i===15).map(id=>rooms[id].map(v=>v+.5));
+ staticLights=null;
+ lamps=chapter.route.filter((_,i)=>i%2===0||i===chapter.route.length-1).map(id=>rooms[id].map(v=>v+.5));
  roomDistance=null;
 }
 const wall=(x,y)=>grid[Math.floor(y)]?.[Math.floor(x)]!==0;
@@ -113,6 +123,16 @@ const angle=a=>Math.atan2(Math.sin(a),Math.cos(a));
 function move(o,x,y,r){
  if(!wall(o.x+x+r,o.y+r)&&!wall(o.x+x-r,o.y+r)&&!wall(o.x+x+r,o.y-r)&&!wall(o.x+x-r,o.y-r))o.x+=x;
  if(!wall(o.x+r,o.y+y+r)&&!wall(o.x-r,o.y+y+r)&&!wall(o.x+r,o.y+y-r)&&!wall(o.x-r,o.y+y-r))o.y+=y;
+}
+function moveEnemy(e,dx,dy){
+ const x=e.x+dx,y=e.y+dy;
+ if(e===boss&&Math.hypot(x-e.homeX,y-e.homeY)>2.45)return;
+ const rise=floor(x,y)-floor(e.x,e.y);
+ if(!wall(x,y)&&rise>.23){
+  if(e.jump<=0){e.jump=jumpDuration;return}
+  if(hopHeight(e)<rise-.04)return;
+ }
+ move(e,dx,dy,.21);
 }
 function ray(x,y,dx,dy,startZ,endZ,distance){
  let ix=Math.floor(x),iy=Math.floor(y);
@@ -181,7 +201,7 @@ function score(){
  if(!audio)return;
  if(nextBeat<audio.currentTime-.15)nextBeat=audio.currentTime;
  while(nextBeat<audio.currentTime+.12){
-  const i=step%16, root=[41.2,46.25,36.71][n], pitch=root*2**(riffs[n][i]/12);
+  const i=step%16, root=[41.2,46.25,36.71,43.65,32.70][n], pitch=root*2**(riffs[levels[n].theme][i]/12);
   tone(pitch,.14,.25,'triangle',nextBeat,music);
   if(i!==7&&i!==15){
    tone(pitch*2,.115,.10,'sawtooth',nextBeat,music);
@@ -191,7 +211,7 @@ function score(){
   if(i%8===4)tone(193,.095,.22,'square',nextBeat,music,58);
   if(i%2===0)tone(713,.026,.055,'square',nextBeat,music,269);
   if(i===0||i===10)tone(pitch*8,.35,.055,'triangle',nextBeat,music);
-  nextBeat+=60/[128,144,156][n]/4;step++;
+  nextBeat+=60/[128,144,139,150,156][n]/4;step++;
  }
 }
 function fire(){
@@ -250,8 +270,8 @@ function update(dt){
   e.hit-=dt;if(e.hp<=0){e.dead+=dt;continue}
   const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy)||.001,kind=types[e.id][2],see=ray(e.x,e.y,dx/d,dy/d,floor(e.x,e.y)+.48,p.z+.44,d);
   const melee=kind==='runner'||kind==='charger'||kind==='ghost';
-  const range=melee?2.2:kind==='sniper'?11:6;
-  e.jump=Math.max(0,e.jump-dt);e.jumpWait-=dt;
+  const range=e===boss?6.5:melee?2.2:kind==='sniper'?11:6;
+  e.jump=Math.max(0,e.jump-dt);
   if(see&&(e.wind>0||d<9))e.facing+=Math.max(-dt*3,Math.min(dt*3,angle(Math.atan2(dy,dx)-e.facing)));
   if(e.hit>0)e.wind=0;
   const wasWind=e.wind;
@@ -262,18 +282,15 @@ function update(dt){
   if(wasWind>attackDuration*.48&&e.wind<=attackDuration*.48&&see&&d<range){
    if(melee&&d<.76)damage(kind==='charger'?21:12);
    else{
-    const base=Math.atan2(dy,dx), offsets=kind==='boss'?[-.35,-.17,0,.17,.35]:kind==='burst'?[-.15,0,.15]:[0];
+    const base=Math.atan2(dy,dx), offsets=e===boss?(n===4?[-.40,-.20,0,.20,.40]:[-.20,0,.20]):kind==='burst'?[-.15,0,.15]:[0];
     for(const offset of offsets)shots.push({x:e.x,y:e.y,a:base+offset,altitude:floor(e.x,e.y)+.48,color:types[e.id][1],speed:kind==='sniper'?8:3.3,slope:(p.z+.44-floor(e.x,e.y)-.48)/d,ttl:4});
    }
   }
   const x=Math.floor(e.x),y=Math.floor(e.y);
   const pathLength=roomDistance.values[y*mapSize+x];
   e.walk=see?d<9&&d>(melee?.57:kind==='sniper'?7:3):pathLength>0&&pathLength<=10;
-  if(e.wind>0||(kind==='boss'&&!see))e.walk=false;
+  if(e.wind>0||(e===boss&&!see))e.walk=false;
   e.run=e.walk&&see&&d>(e.run?3.1:4.0);
-  if(e.run&&d>3.8&&d<5.2&&e.jumpWait<=0&&e.jump<=0&&(e.id+Math.round(e.phase*10))%3===0){
-   e.jump=jumpDuration;e.jumpWait=22+e.phase%4;
-  }
   if(e.walk)e.travel=(e.travel+dt*(e.run?10:6.5))%12;
 
   if(e.walk&&d>.05){
@@ -283,13 +300,13 @@ function update(dt){
     if(next){
      const vx=x+next[0]+.5-e.x,vy=y+next[1]+.5-e.y,dist=Math.hypot(vx,vy);
      e.facing+=Math.max(-dt*3,Math.min(dt*3,angle(Math.atan2(vy,vx)-e.facing)));
-     if(dist>0)move(e,vx/dist*Math.min(dist,speed),vy/dist*Math.min(dist,speed),.21);
+     if(dist>0)moveEnemy(e,vx/dist*Math.min(dist,speed),vy/dist*Math.min(dist,speed));
     }
     continue;
    }
    const steer=kind==='strafer'?Math.sin(time*3):0;
-   const ox=e.x,oy=e.y;move(e,(dx-dy*steer)/d*speed,(dy+dx*steer)/d*speed,.21);
-   if(Math.hypot(e.x-ox,e.y-oy)<speed*.3)move(e,-dy/d*speed,dx/d*speed,.21);
+   const ox=e.x,oy=e.y;moveEnemy(e,(dx-dy*steer)/d*speed,(dy+dx*steer)/d*speed);
+   if(Math.hypot(e.x-ox,e.y-oy)<speed*.3)moveEnemy(e,-dy/d*speed,dx/d*speed);
   }
  }
  for(const s of shots){
@@ -298,10 +315,11 @@ function update(dt){
   if(s.ttl>0&&Math.hypot(p.x-s.x,p.y-s.y)<.28&&Math.abs(p.z+.44-s.altitude)<.50){damage(12);s.ttl=0}
  }
  shots=shots.filter(s=>s.ttl>0);
- const clear=foes.every(e=>e.hp<=0);
+ if(boss.hp<=0&&!keyDropped){items.push([boss.x,boss.y,'key']);keyDropped=true}
  pickupTime=Math.max(0,pickupTime-dt);
  items=items.filter(([x,y,kind,id])=>{
   if(Math.hypot(p.x-x,p.y-y)>(kind==='weapon'?.8:.55))return true;
+  if(kind==='key'){keyHeld=true;pickupNotice='CLAU DE SORTIDA';pickupTime=3.8}
   if(kind==='weapon'){
    owned.add(id);weapon=id;heat=0;p.ammo+=12;
    pickupNotice=guns[id].name+'  ·  '+(id+1);pickupTime=3.8;
@@ -312,23 +330,34 @@ function update(dt){
   return kind==='exit';
  });
  if(p.hp<=0)end(false);
- else if(clear&&Math.hypot(p.x-exitPoint[0],p.y-exitPoint[1])<.55){if(n===2)end(true);else level(n+1)}
+ else if(keyHeld&&Math.hypot(p.x-exitPoint[0],p.y-exitPoint[1])<.55){if(n===levels.length-1)end(true);else level(n+1)}
 }
-const depth=new Float32Array(W*H);
-const frameBuffer=ctx.createImageData(W,H);
-const pixels=new Uint32Array(frameBuffer.data.buffer);
+let depth,frameBuffer,pixels,horizon,focal;
+const qualities={fluid:416,balanced:576,detail:704};
+let settings={quality:'balanced',particles:true,music:true};
+try{settings={...settings,...JSON.parse(localStorage.getItem('ferro-options')||'{}')}}catch{}
+let redraw=true;
+function applyQuality(){
+ W=qualities[settings.quality]??qualities.balanced;H=W*9/16;
+ screen.width=W;screen.height=H;ctx.imageSmoothingEnabled=false;
+ depth=new Float32Array(W*H);frameBuffer=ctx.createImageData(W,H);
+ pixels=new Uint32Array(frameBuffer.data.buffer);horizon=H/2;focal=W*270/576;
+ redraw=true;
+}
+applyQuality();
 const palettes=[
  [[116,63,48],[59,47,51],[43,26,34],[255,130,64]],
  [[49,93,98],[33,58,67],[26,42,53],[100,238,216]],
  [[103,46,77],[60,36,57],[46,25,41],[247,93,136]]
 ];
-const horizon=H/2, focal=270;
+
 function shade(rgb,light){
  const r=Math.min(255,rgb[0]*light)|0,g=Math.min(255,rgb[1]*light)|0,b=Math.min(255,rgb[2]*light)|0;
  return (255<<24)|(b<<16)|(g<<8)|r;
 }
 const lightSize=mapSize*4;
 const lighting=new Float32Array(lightSize*lightSize*3);
+let staticLights=null;
 function lightAt(x,y){
  const col=Math.max(0,Math.min(lightSize-1,Math.floor(x*4)));
  const row=Math.max(0,Math.min(lightSize-1,Math.floor(y*4)));
@@ -350,10 +379,13 @@ function addLight(x,y,radius,power,color){
  }
 }
 function updateLights(core){
- lighting.fill(0);
- lamps.forEach(([x,y],i)=>addLight(x,y,3.35,.26+.035*Math.sin(time*5+i*11),glowColors[n]));
- lamps.forEach(([x,y],i)=>{if(i%2===0)addLight(x+1,y+1,2.7,.11,[119,168,219])});
- if(core)addLight(core.x,core.y,6.4,.20+reactorPulse()*.59,[255,48,33]);
+ if(!staticLights){
+  lighting.fill(0);
+  lamps.forEach(([x,y])=>addLight(x,y,3.35,.26,glowColors[levels[n].theme]));
+  lamps.forEach(([x,y],i)=>{if(i%2===0)addLight(x+1,y+1,2.7,.11,[119,168,219])});
+  staticLights=lighting.slice();
+ }else lighting.set(staticLights);
+ if(core&&Math.hypot(p.x-core.x,p.y-core.y)<13)addLight(core.x,core.y,6.4,.20+reactorPulse()*.59,[255,48,33]);
  if(flash>0)addLight(p.x+Math.cos(p.a)*.6,p.y+Math.sin(p.a)*.6,4,.65*flash/.105,boltColor[weapon]);
  for(const shot of shots)addLight(shot.x,shot.y,1.45,.16,[255,130,82]);
 }
@@ -405,7 +437,8 @@ const wallTextures=wallMaterials.map((colors,chapter)=>{
  return tiles;
 });
 function world(ca,sa,plane,eye){
- const [,floorInk,roofInk,lamp]=palettes[n];
+ const theme=levels[n].theme;
+ const [,floorInk,roofInk,lamp]=palettes[theme];
  depth.fill(Infinity);
  pixels.fill(shade(roofInk,.24));
  for(let x=0;x<W;x++){
@@ -460,7 +493,7 @@ function world(ca,sa,plane,eye){
      const luminous=solid&&(row&63)>=41&&(row&63)<=43&&u>21&&u<106&&style===2;
      const illumination=1.12/(1+d*.106)*(side?.78:1);
      const faceLight=lightAt(p.x+dx*(d-.025),p.y+dy*(d-.025));
-     const texture=solid?wallTextures[n][style][row*128+u]:wallMaterials[n][((u+row*2)&31)<12?2:3];
+     const texture=solid?wallTextures[theme][style][row*128+u]:wallMaterials[theme][((u+row*2)&31)<12?2:3];
      pixels[index]=lit(luminous?lamp:texture,illumination*(luminous?1.66:1),faceLight,.95);
      depth[index]=d;
     }
@@ -490,7 +523,7 @@ const fixtureArt=glowColors.map(([r,g,b])=>{
 });
 function drawAtmosphere(ca,sa,plane,eye,core){
  const sparks=n===1?'#c4fff1':n===2?'#ff8054':'#ffb86c';
- const count=core?77:43;
+ const count=settings.particles?(core?77:43):0;
  for(let i=0;i<count;i++){
   const anchor=i<43?lamps[i%lamps.length]:[core.x,core.y];
   const cycle=(i*.6180339+time*(.13+i%5*.024))%1;
@@ -529,13 +562,19 @@ const pickupArt=guns.map((gun,id)=>{
  g.font='bold 12px monospace';g.textAlign='center';g.fillStyle='#fff0cd';g.fillText(id+1,32,19);
  return c;
 });
+const keyArt=document.createElement('canvas');
+keyArt.width=keyArt.height=48;
+const keyInk=keyArt.getContext('2d');
+keyInk.fillStyle='#ffbc48';keyInk.fillRect(10,12,15,15);keyInk.fillRect(20,21,19,6);
+keyInk.fillRect(33,25,5,7);keyInk.fillRect(26,25,4,5);
+keyInk.clearRect(15,16,5,6);keyInk.fillStyle='#fff5ad';keyInk.fillRect(11,12,13,2);
 function draw(){
  const ca=Math.cos(p.a),sa=Math.sin(p.a),plane=.69;
  const eye=p.z+.5+Math.sin(elapsed*2)*.018;
- const core=n===2?foes.find(e=>e.id===9&&e.hp>0):null;
+ const core=boss.hp>0?boss:null;
  updateLights(core);
  world(ca,sa,plane,eye);
- const scene=lamps.map(([x,y])=>({x,y,art:fixtureArt[n],size:.50,altitude:ceiling-.51,fixture:true}));
+ const scene=lamps.map(([x,y])=>({x,y,art:fixtureArt[levels[n].theme],size:.50,altitude:ceiling-.51,fixture:true}));
  for(const e of foes){
   if(!enemiesReady)continue;
   const pose=e.hp<=0?'death':e.hit>0?'hit':e.jump>0?'jump':e.wind>0?'shoot':e.run?'run':e.walk?'walk':'idle';
@@ -550,11 +589,12 @@ function draw(){
  }
  for(const s of shots)scene.push({...s,size:.14,offset:.50});
  for(const [x,y,kind,id] of items){
+  if(kind==='key'){scene.push({x,y,art:keyArt,size:.52,offset:.07+Math.sin(time*4)*.07,fixture:true});continue}
   if(kind==='weapon'){
    scene.push({x,y,art:pickupArt[id],size:.74,offset:.09+Math.sin(time*4)*.055,fixture:true});
    continue;
   }
-  scene.push({x,y,size:kind==='exit'?.65:.21,color:kind==='hp'?'#8cf0a2':kind==='ammo'?'#ffce75':foes.every(e=>e.hp<=0)?'#69fce0':'#bd5453',offset:kind==='exit'?.19:.09});
+  scene.push({x,y,size:kind==='exit'?.65:.21,color:kind==='hp'?'#8cf0a2':kind==='ammo'?'#ffce75':keyHeld?'#69fce0':'#bd5453',offset:kind==='exit'?.19:.09});
  }
  for(const o of scene){const dx=o.x-p.x,dy=o.y-p.y;o.z=dx*ca+dy*sa;o.l=-dx*sa+dy*ca}
  scene.sort((a,b)=>b.z-a.z);
@@ -564,7 +604,7 @@ function draw(){
   const left=Math.floor(W/2+W/2*o.l/(o.z*plane)-w/2);
   const altitude=o.altitude??floor(o.x,o.y)+(o.offset||0);
   const top=Math.floor(horizon+(eye-altitude)*focal/o.z-h);
-  if(w<1)continue;
+  if(w<1||left>=W||left+w<=0||top>=H||top+h<=0)continue;
   if(o.art){ctx.save();ctx.beginPath();}
   if(o.art&&!o.fixture){
    const li=lightAt(o.x,o.y);
@@ -613,35 +653,63 @@ function draw(){
  ctx.fillStyle='#100b17';ctx.fillRect(0,270-28,480,28);
  ctx.font='bold 11px monospace';ctx.fillStyle='#ff8b61';ctx.fillText('VIDA '+p.hp,10,270-10);
  ctx.fillStyle='#fff0d0';ctx.fillText((weapon+1)+' '+guns[weapon].name+' · '+p.ammo,78,270-10);
- ctx.fillStyle='#9ee9dd';ctx.textAlign='right';ctx.fillText((n+1)+'/3  '+levels[n].name,470,270-10);ctx.textAlign='left';
- const remaining=foes.filter(e=>e.hp>0).length;
- ctx.fillStyle='#100b17bb';ctx.fillRect(8,8,154,21);
- ctx.fillStyle='#fff0d0';ctx.fillText(remaining?'CONTACTES  '+remaining:'SORTIDA DESBLOQUEJADA',14,22);
+ ctx.fillStyle='#9ee9dd';ctx.textAlign='right';ctx.fillText((n+1)+'/'+levels.length+'  '+levels[n].name,470,270-10);ctx.textAlign='left';
+ ctx.fillStyle='#100b17d9';ctx.fillRect(8,8,200,31);
+ ctx.fillStyle='#fff0d0';ctx.fillText(keyHeld?'CLAU OBTINGUDA · VES A LA SORTIDA':keyDropped?'RECULL LA CLAU':'DERROTA EL CAP I RECULL LA CLAU',14,20);
+ if(!keyDropped&&Math.hypot(p.x-boss.x,p.y-boss.y)<8){
+  ctx.fillStyle='#fa987e';ctx.fillText(levels[n].bossName,14,34);
+  ctx.fillRect(14,38,156*boss.hp/boss.maxHp,3);
+ }
  if(pickupTime>0){
   ctx.fillStyle='#160e19ee';ctx.fillRect(112,178,256,26);
   ctx.fillStyle=guns[weapon].color;ctx.fillRect(112,178,256,2);
   ctx.fillStyle='#fff0cd';ctx.textAlign='center';
-  ctx.fillText('ARMA RECOLLIDA  ·  '+pickupNotice,240,195);ctx.textAlign='left';
+  ctx.fillText(pickupNotice==='CLAU DE SORTIDA'?'CLAU DE SORTIDA RECOLLIDA':'ARMA RECOLLIDA  ·  '+pickupNotice,240,195);ctx.textAlign='left';
  }
  ctx.restore();
 }
 function end(win){
+ showMenuPanel();$('menuRestart').hidden=true;redraw=true;
  state='end';document.body.classList.remove('playing');document.exitPointerLock?.();
- $('intro').textContent=win?'El cor s’ha aturat. La foneria torna a ser vostra.':'La foneria t’ha engolit. Pots tornar a provar el nivell.';
+ $('intro').textContent=win?'Has recuperat les cinc claus. La foneria torna a ser vostra.':'La foneria t’ha engolit. Pots tornar a provar el nivell.';
  $('start').textContent=win?'Torna a la foneria':'Reintenta el nivell';
  $('menu').hidden=false;
  $('start').dataset.level=win?0:n;
  keys.clear();resetTouch();
 }
 $('start').onclick=e=>{
+ showMenuPanel();$('menuRestart').hidden=true;
  if(state!=='pause')level(Number($('start').dataset.level||0));
  state='playing';$('menu').hidden=true;document.body.classList.add('playing');initAudio();
  if(e?.pointerType!=='touch'&&matchMedia('(pointer:fine)').matches)screen.requestPointerLock?.()?.catch?.(()=>{});
 };
-$('mute').onclick=()=>{muted=!muted;if(music)music.gain.value=muted?0:.34;$('mute').textContent=muted?'♫ ×':'♫'};
+function saveSettings(){
+ settings.music=!muted;
+ try{localStorage.setItem('ferro-options',JSON.stringify(settings))}catch{}
+ if(music)music.gain.value=muted?0:.34;
+ $('musicOption').checked=!muted;$('mute').textContent=muted?'♫ ×':'♫';
+}
+muted=!settings.music;
+$('musicOption').checked=!muted;$('mute').textContent=muted?'♫ ×':'♫';
+$('particlesOption').checked=settings.particles;$('quality').value=settings.quality;
+$('mute').onclick=()=>{muted=!muted;saveSettings()};
+$('musicOption').onchange=()=>{muted=!$('musicOption').checked;saveSettings()};
+$('particlesOption').onchange=()=>{settings.particles=$('particlesOption').checked;redraw=true;saveSettings()};
+$('quality').onchange=()=>{settings.quality=$('quality').value;applyQuality();saveSettings()};
+function showMenuPanel(panel){
+ $('menuActions').hidden=!!panel;$('menuPanel').hidden=!panel;
+ $('optionsPanel').hidden=panel!=='options';$('controlsPanel').hidden=panel!=='controls';
+}
+$('menuOptions').onclick=()=>showMenuPanel('options');
+$('menuControls').onclick=()=>showMenuPanel('controls');
+$('menuBack').onclick=()=>showMenuPanel();
+$('menuRestart').onclick=e=>{state='end';$('start').dataset.level=n;$('start').onclick(e)};
+$('pauseButton').onclick=pause;
+
 $('swap').onclick=()=>{const available=[...owned].sort((a,b)=>a-b);weapon=available[(available.indexOf(weapon)+1)%available.length]};
 function pause(){
  if(state!=='playing')return;
+ showMenuPanel();$('menuRestart').hidden=false;document.exitPointerLock?.();
  state='pause';document.body.classList.remove('playing');keys.clear();resetTouch();
  $('intro').textContent='WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma.';
  $('start').textContent='Continua';$('menu').hidden=false;
@@ -707,7 +775,8 @@ level(0);let last=0;
 function frame(now){
  const dt=Math.min(.05,(now-last)/1000);last=now;
  if(state==='playing'){time+=dt;update(dt);score()}
- draw();requestAnimationFrame(frame);
+ if(state==='playing'||redraw){draw();redraw=false}
+ requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 </script>
