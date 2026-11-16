@@ -21,7 +21,7 @@
 #campaignLevels li{margin:6px 0}#campaignLevels button{padding:8px 12px;text-align:left}#campaignLevels button:disabled{opacity:.48;cursor:default}
 </style>
 <canvas id="screen" width="576" height="324" aria-label="Ferro Feral"></canvas>
-<section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">Travessa cinc mons, venç els guardians i reuneix les claus del Llindar.</p><p id="accountStatus" role="status" hidden></p><div id="menuActions"><button id="start">Inicia la campanya</button><button id="menuCampaign">Tria un món</button><button id="accountButton" hidden>Entra amb Google</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
+<section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">Travessa cinc mons, venç els guardians i reuneix les claus del Llindar.</p><p id="accountStatus" role="status" hidden></p><div id="menuActions"><button id="start">Inicia la campanya</button><button id="menuArena">Arena de quatre sales</button><button id="menuArenaExit" hidden>Surt de l’arena</button><button id="menuCampaign">Tria un món</button><button id="accountButton" hidden>Entra amb Google</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
 <section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><label>Món <select id="worldSelect"></select></label><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label>Volum dels efectes <input id="fxVolume" type="range" min="0" max="1" step=".05"></label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma Q per saltar i Esc per pausar.</p><p><b>Mòbil</b> · Bolet per moure’t, arrossega la vista per girar i toca FOC, Salt o Arma.</p><p><b>Comandament</b> · Estic esquerre per moure’t, dret per girar, RT per disparar, A per saltar, Y per canviar d’arma i Menú per pausar o continuar.</p></div><button id="menuBack">Torna</button></section></section>
 <button id="pauseButton" type="button" aria-label="Pausa">Ⅱ</button>
 <button id="mute" aria-label="Activa o silencia la música">♫</button>
@@ -41,8 +41,9 @@
 <script src="./account.js"></script>
 <script src="./supabase-config.js"></script>
 <script src="./assets/enemies/catalog.js"></script>
-<script src="./assets/enemies/sprites.js?v=animated1"></script>
+<script src="./assets/enemies/sprites.js?v=arena1"></script>
 <script src="./assets/combat.js"></script>
+<script src="./assets/levels/arena.js?v=1"></script>
 <script src="./assets/music.js"></script>
 <script>
 'use strict';
@@ -57,7 +58,7 @@ let n=0,grid,heights,foes,shots,items,p,weapon,heat,flash,hurt,exitPoint,lamps,c
 const owned=new Set([0]);
 const blood=[];
 const bloodColors=['#6a101d','#a0192b','#db2837','#ff514a'];
-let state='menu',time=0,elapsed=0,roomDistance;
+let state='menu',time=0,elapsed=0,roomDistance,arena=false;
 let audio, music, fx, step=0, nextBeat=0, muted=false;
 function level(index){
  n=index;
@@ -251,9 +252,9 @@ function playVictory(){
  const start=audio.currentTime;
  [0,3,7,12,15].forEach((note,i)=>tone(146.83*2**(note/12),i===4?.8:.35,.24,'triangle',start+i*.14,music));
 }
-function sprayBlood(enemy,amount){
+function sprayBlood(enemy,amount,source=p){
  const count=Math.min(14,6+Math.floor(amount/12));
- const direction=Math.atan2(enemy.y-p.y,enemy.x-p.x);
+ const direction=Math.atan2(enemy.y-source.y,enemy.x-source.x);
  if(blood.length+count>96)blood.splice(0,blood.length+count-96);
  for(let i=0;i<count;i++){
   const a=direction+(Math.random()-.5)*2.5,speed=.28+Math.random()*1.45;
@@ -330,6 +331,18 @@ function jumpPlayer(){
  if(state!=='playing'||p.jumpTime>0)return;
  p.jumpTime=playerJumpDuration;
 }
+function enemyAltitude(enemy){
+ return enemy===p?p.z+.44:floor(enemy.x,enemy.y)+.48+hopHeight(enemy);
+}
+function enemyCanSee(enemy,target,distance){
+ return distance>.001&&ray(enemy.x,enemy.y,(target.x-enemy.x)/distance,(target.y-enemy.y)/distance,
+  enemyAltitude(enemy),enemyAltitude(target),distance);
+}
+function hitArenaTarget(target,source,amount){
+ if(target===p){damage(amount);return}
+ target.hp-=amount;target.hit=hitDuration;
+ sprayBlood(target,amount,source);
+}
 function update(dt){
  attempt.seconds+=dt;
  tickBlood(dt);
@@ -348,7 +361,13 @@ function update(dt){
  updateNavigation();
  for(const e of foes){
   e.hit-=dt;if(e.hp<=0){e.dead+=dt;continue}
-  const dx=p.x-e.x,dy=p.y-e.y,d=Math.hypot(dx,dy)||.001,kind=e.type.kind,see=ray(e.x,e.y,dx/d,dy/d,floor(e.x,e.y)+.48,p.z+.44,d);
+  if(arena&&e.wind<=0&&time>=e.nextTarget){
+   e.target=ferroArena.target(e,p,foes,enemyCanSee);
+   e.nextTarget=time+.32;
+  }
+  const target=arena?e.target:p;
+  const dx=target?target.x-e.x:0,dy=target?target.y-e.y:0,d=Math.hypot(dx,dy)||.001,kind=e.type.kind;
+  const see=!!target&&target.hp>0&&(arena?enemyCanSee(e,target,d):ray(e.x,e.y,dx/d,dy/d,floor(e.x,e.y)+.48,p.z+.44,d));
   const melee=kind==='runner'||kind==='charger'||kind==='ghost';
   const range=e===boss?6.5:melee?2.2:kind==='sniper'?11:6;
   e.jump=Math.max(0,e.jump-dt);
@@ -360,15 +379,18 @@ function update(dt){
    e.wind=attackDuration;e.reload=kind==='sniper'?2.9:kind==='burst'?1.15:1.75;
   }
   if(wasWind>attackDuration*.48&&e.wind<=attackDuration*.48&&see&&d<range){
-   if(melee&&d<.76)damage(kind==='charger'?21:12);
+   if(melee&&d<.76){
+    if(arena)hitArenaTarget(target,e,kind==='charger'?21:12);
+    else damage(kind==='charger'?21:12);
+   }
    else{
     const base=Math.atan2(dy,dx), offsets=e===boss?(levels[n].stage===4?[-.40,-.20,0,.20,.40]:[-.20,0,.20]):kind==='burst'?[-.15,0,.15]:[0];
-    for(const offset of offsets)shots.push({x:e.x,y:e.y,a:base+offset,altitude:floor(e.x,e.y)+.48,color:e.type.world.glow,speed:kind==='sniper'?8:3.3,slope:(p.z+.44-floor(e.x,e.y)-.48)/d,ttl:4});
+    for(const offset of offsets)shots.push({x:e.x,y:e.y,a:base+offset,altitude:floor(e.x,e.y)+.48,color:e.type.world.glow,speed:kind==='sniper'?8:3.3,slope:((arena?enemyAltitude(target):p.z+.44)-floor(e.x,e.y)-.48)/d,ttl:4,owner:arena?e:null});
    }
   }
   const x=Math.floor(e.x),y=Math.floor(e.y);
   const pathLength=roomDistance.values[y*mapSize+x];
-  e.walk=see?d<9&&d>(melee?.57:kind==='sniper'?7:3):pathLength>0&&pathLength<=10;
+  e.walk=see?d<9&&d>(melee?.57:kind==='sniper'?7:3):!arena&&pathLength>0&&pathLength<=10;
   if(e.wind>0||(e===boss&&!see))e.walk=false;
   e.run=e.walk&&see&&d>(e.run?3.1:4.0);
   if(e.walk)e.travel=(e.travel+dt*(e.run?10:6.5))%12;
@@ -392,10 +414,14 @@ function update(dt){
  for(const s of shots){
   s.ttl-=dt;s.x+=Math.cos(s.a)*dt*s.speed;s.y+=Math.sin(s.a)*dt*s.speed;s.altitude+=s.slope*dt*s.speed;
   if(wall(s.x,s.y)||floor(s.x,s.y)>=s.altitude||s.altitude>=ceiling)s.ttl=0;
+  if(arena&&s.ttl>0){
+   const victim=ferroArena.shotTarget(s,foes,enemyAltitude);
+   if(victim){hitArenaTarget(victim,s.owner,12);s.ttl=0}
+  }
   if(s.ttl>0&&Math.hypot(p.x-s.x,p.y-s.y)<.28&&Math.abs(p.z+.44-s.altitude)<.50){damage(12);s.ttl=0}
  }
  shots=shots.filter(s=>s.ttl>0);
- if(boss.hp<=0&&!keyDropped){items.push([boss.x,boss.y,'key']);keyDropped=true}
+ if(!arena&&boss.hp<=0&&!keyDropped){items.push([boss.x,boss.y,'key']);keyDropped=true}
  pickupTime=Math.max(0,pickupTime-dt);
  items=items.filter(([x,y,kind,id])=>{
   if(Math.hypot(p.x-x,p.y-y)>(kind==='weapon'?.8:.55))return true;
@@ -421,7 +447,9 @@ function update(dt){
   }
   return kind==='exit';
  });
- if(p.hp<=0)end(false);
+ if(arena){
+  if(p.hp<=0||foes.every(enemy=>enemy.hp<=0))endArena(p.hp>0);
+ }else if(p.hp<=0)end(false);
  else if(keyHeld&&Math.hypot(p.x-exitPoint[0],p.y-exitPoint[1])<.55){completeLevel()}
 }
 let depth,frameBuffer,pixels,horizon,focal;
@@ -709,10 +737,10 @@ function draw(){
  ctx.fillStyle='#100b17';ctx.fillRect(0,270-28,480,28);
  ctx.font='bold 11px monospace';ctx.fillStyle='#ff8b61';ctx.fillText('VIDA '+p.hp,10,270-10);
  ctx.fillStyle='#fff0d0';ctx.fillText((weapon+1)+' '+guns[weapon].name+' · '+p.ammo,78,270-10);
- ctx.fillStyle='#9ee9dd';ctx.textAlign='right';ctx.fillText((levels[n].theme+1)+'.'+(levels[n].stage+1)+'  '+levels[n].name,470,270-10);ctx.textAlign='left';
+ ctx.fillStyle='#9ee9dd';ctx.textAlign='right';ctx.fillText(arena?'ARENA DE QUATRE SALES':(levels[n].theme+1)+'.'+(levels[n].stage+1)+'  '+levels[n].name,470,270-10);ctx.textAlign='left';
  ctx.fillStyle='#100b17d9';ctx.fillRect(8,8,200,31);
- ctx.fillStyle='#fff0d0';ctx.fillText(keyHeld?'CLAU OBTINGUDA · VES A LA SORTIDA':keyDropped?'RECULL LA CLAU':'DERROTA EL CAP I RECULL LA CLAU',14,20);
- if(!keyDropped&&Math.hypot(p.x-boss.x,p.y-boss.y)<8){
+ ctx.fillStyle='#fff0d0';ctx.fillText(arena?'ENEMICS VIUS · '+foes.filter(enemy=>enemy.hp>0).length+'/'+foes.length:keyHeld?'CLAU OBTINGUDA · VES A LA SORTIDA':keyDropped?'RECULL LA CLAU':'DERROTA EL CAP I RECULL LA CLAU',14,20);
+ if(!arena&&!keyDropped&&Math.hypot(p.x-boss.x,p.y-boss.y)<8){
   ctx.fillStyle='#fa987e';ctx.fillText(levels[n].bossName,14,34);
   ctx.fillRect(14,38,156*boss.hp/boss.maxHp,3);
  }
@@ -753,6 +781,8 @@ $('start').dataset.level=worldProgress[0];
 if(worldProgress[0]>0)$('start').textContent='Continua la campanya';
 
 function showCampaign(worldIndex=levels[n].theme){
+ if(loadingEnemyArt)return;
+ if(arena)leaveArena();
  $('campaignName').textContent=campaign.name;
  const select=$('worldSelect');
  select.replaceChildren(...worlds.map((world,index)=>{
@@ -898,9 +928,69 @@ function end(win){
  keys.clear();resetTouch();
 }
 let loadingEnemyArt=false;
+function enterPlay(e){
+ accountButton.disabled=false;
+ state='playing';$('menu').hidden=true;document.body.classList.add('playing');initAudio();
+ if(e?.pointerType!=='touch'&&e?.pointerType!=='gamepad'&&matchMedia('(pointer:fine)').matches)screen.requestPointerLock?.()?.catch?.(()=>{});
+}
+function endArena(won){
+ state='arena-end';redraw=true;
+ keys.clear();resetTouch();document.body.classList.remove('playing');document.exitPointerLock?.();
+ showMenuPanel();$('menu').hidden=false;$('menuRestart').hidden=true;
+ $('intro').textContent=won?'Has sobreviscut a l’arena.':'Has caigut a l’arena.';
+ $('start').textContent='Torna a provar l’arena';
+}
+function leaveArena(){
+ arena=false;state='menu';
+ ferroEnemySprites.retainWorlds(false);
+ level(0);redraw=true;
+ ferroEnemySprites.prepare(0).then(()=>{redraw=true}).catch(()=>{});
+ $('menuArenaExit').hidden=true;$('menuRestart').hidden=true;
+ $('start').dataset.level=worldProgress[0];
+ $('start').textContent=worldProgress[0]>0?'Continua la campanya':'Inicia la campanya';
+ $('intro').textContent='Travessa cinc mons, venç els guardians i reuneix les claus del Llindar.';
+ accountButton.disabled=false;
+}
+async function startArena(e){
+ if(loadingEnemyArt)return;
+ loadingEnemyArt=true;
+ const button=$('menuArena'),start=$('start');
+ button.disabled=start.disabled=true;
+ $('intro').textContent='Carregant els enemics de l’arena…';
+ ferroEnemySprites.retainWorlds(true);
+ try{
+  for(let theme=0;theme<worlds.length;theme++)await ferroEnemySprites.prepare(theme);
+ }catch{
+  if(!arena)ferroEnemySprites.retainWorlds(false);
+  $('intro').textContent='No s’han pogut carregar els enemics de l’arena. Torna a provar-ho.';
+  return;
+ }finally{
+  loadingEnemyArt=false;button.disabled=start.disabled=false;
+ }
+ arena=true;n=0;
+ ferroEnemySprites.clear();
+ const map=ferroArena.layout(mapSize,types);
+ grid=map.grid;heights=grid.map(row=>row.map(()=>0));ceiling=2.58;
+ const [x,y]=map.start;
+ p={x,y,a:Math.PI/4,z:0,groundZ:0,jumpTime:0,hp:100,ammo:240};
+ foes=map.spawns.map((enemy,i)=>({...enemy,hp:enemy.type.hp,phase:i*.71,reload:.6+(i%13)*.13,hit:0,dead:0,wind:0,facing:i*1.7,jump:0,travel:0,run:false,nextTarget:time+(i%20)*.015}));
+ boss={x,y,hp:0};
+ shots=[];blood.length=0;heat=flash=hurt=0;
+ keyHeld=keyDropped=false;
+ attempt={shots:0,hits:0,seconds:0,damageTaken:0,secrets:0,deaths:0};
+ checkpoint=null;roomDistance=null;
+ items=map.supplies;lamps=map.lamps;staticLights=null;
+ owned.clear();guns.forEach((_,i)=>owned.add(i));weapon=0;
+ pickupTime=0;pickupNotice='';step=0;combatHold=0;musicMode=undefined;
+ $('menuRestart').hidden=true;$('menuArenaExit').hidden=false;
+ enterPlay(e);
+}
+$('menuArena').onclick=startArena;
+$('menuArenaExit').onclick=leaveArena;
 $('start').onclick=e=>{
  if(state==='world-clear'){showCampaign();return}
  if(loadingEnemyArt)return;
+ if(arena&&state==='arena-end'){startArena(e);return}
  showMenuPanel();$('menuRestart').hidden=true;
  if(state==='checkpoint'){
   attempt.deaths++;
@@ -936,9 +1026,7 @@ $('start').onclick=e=>{
   for(let id=0;id<=selected&&id<5;id++)owned.add(id);
   level(selected);
  }
- accountButton.disabled=false;
- state='playing';$('menu').hidden=true;document.body.classList.add('playing');initAudio();
- if(e?.pointerType!=='touch'&&e?.pointerType!=='gamepad'&&matchMedia('(pointer:fine)').matches)screen.requestPointerLock?.()?.catch?.(()=>{});
+ enterPlay(e);
 };
 function saveSettings(){
  settings.music=!muted;
@@ -967,7 +1055,7 @@ function showMenuPanel(panel){
 $('menuOptions').onclick=()=>showMenuPanel('options');
 $('menuControls').onclick=()=>showMenuPanel('controls');
 $('menuBack').onclick=()=>showMenuPanel();
-$('menuRestart').onclick=e=>{state='end';$('start').dataset.level=n;$('start').onclick(e)};
+$('menuRestart').onclick=e=>{if(arena){startArena(e);return}state='end';$('start').dataset.level=n;$('start').onclick(e)};
 $('pauseButton').onclick=pause;
 
 $('swap').onclick=()=>{const available=[...owned].sort((a,b)=>a-b);weapon=available[(available.indexOf(weapon)+1)%available.length]};

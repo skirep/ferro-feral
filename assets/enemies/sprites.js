@@ -74,7 +74,7 @@ const ferroEnemySprites = (() => {
     if(sheet.naturalWidth!==motionColumns*size||sheet.naturalHeight!==10*size)throw new Error('Invalid motion atlas dimensions');
    }
    loaded.set(theme,{sprites,sheets});
-   if(loaded.size>2)loaded.delete(loaded.keys().next().value);
+   trimWorlds();
   }).finally(()=>worlds.delete(theme));
   worlds.set(theme,task);
   return task;
@@ -127,9 +127,14 @@ const ferroEnemySprites = (() => {
   return image;
  }
 
+ let keepAllWorlds=false;
  const loaded=new Map();
+ function trimWorlds(){
+  while(!keepAllWorlds&&loaded.size>2)loaded.delete(loaded.keys().next().value);
+ }
  return {
   prepare,
+  retainWorlds(value){keepAllWorlds=value;trimWorlds()},
   ready(theme){return loaded.has(theme)},
   clear(){frames.clear()},
   get(type,view,pose,frame){
