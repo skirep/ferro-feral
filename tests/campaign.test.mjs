@@ -24,7 +24,7 @@ function memoryStorage() {
 }
 
 test('the game loads the campaign before parsing its entry script', () => {
-  assert.match(html, /<script src="\.\/campaign\.js"><\/script>\s*<script>/);
+  assert.match(html, /<script src="\.\/campaign\.js"><\/script>(?:\s*<script src="[^"]+"><\/script>)*\s*<script>/);
   assert.doesNotThrow(() => new Script(source + '\n' + game));
 });
 
