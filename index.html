@@ -51,6 +51,7 @@ const guns=[
 ];
 const mapSize=37;
 const keys=new Set();
+let attempt;
 let n=0,grid,heights,foes,shots,items,p,weapon,heat,flash,hurt,exitPoint,lamps,ceiling,pickupNotice,pickupTime,boss,keyHeld,keyDropped;
 const owned=new Set([0]);
 const blood=[];
@@ -59,6 +60,7 @@ let state='menu',time=0,elapsed=0,roomDistance;
 let audio, music, fx, step=0, nextBeat=0, muted=false;
 function level(index){
  n=index;
+ attempt={shots:0,hits:0,seconds:0,damageTaken:0};
  const chapter=levels[n], rooms=Array.from({length:16},(_,i)=>[4+i%4*9,4+Math.floor(i/4)*9]);
  grid=Array.from({length:mapSize},()=>Array(mapSize).fill(1));
  heights=grid.map(row=>row.map(()=>0));
@@ -245,6 +247,8 @@ function fire(){
   const dx=e.x-p.x,dy=e.y-p.y,d=Math.hypot(dx,dy)||.001;
   return e.hp>0&&d<gun.range&&Math.abs(angle(Math.atan2(dy,dx)-p.a))<Math.atan2(.30,d)+gun.spread&&ray(p.x,p.y,dx/d,dy/d,p.z+.5,floor(e.x,e.y)+.52+hopHeight(e),d);
  }).sort((a,b)=>Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y));
+ attempt.shots++;
+ if(targets.length)attempt.hits++;
  targets.slice(0,gun.targets).forEach((e,i)=>{
   const distance=Math.hypot(e.x-p.x,e.y-p.y);
   const drop=weapon===1?Math.max(.30,1-distance*.13):1;
@@ -261,7 +265,7 @@ function fire(){
   }
  });
 }
-function damage(v){if(hurt<=0){p.hp=Math.max(0,p.hp-v);hurt=.32}}
+function damage(v){if(hurt<=0){attempt.damageTaken+=Math.min(p.hp,v);p.hp=Math.max(0,p.hp-v);hurt=.32}}
 const neighbors=[[1,0],[-1,0],[0,1],[0,-1]];
 function updateNavigation(){
  const x=Math.floor(p.x),y=Math.floor(p.y),start=y*mapSize+x;
@@ -279,6 +283,7 @@ function updateNavigation(){
  roomDistance={start,values};
 }
 function update(dt){
+ attempt.seconds+=dt;
  tickBlood(dt);
  const turn=+keys.has('arrowright')-keys.has('arrowleft');
  p.a+=turn*dt*2.3;
@@ -354,7 +359,7 @@ function update(dt){
   return kind==='exit';
  });
  if(p.hp<=0)end(false);
- else if(keyHeld&&Math.hypot(p.x-exitPoint[0],p.y-exitPoint[1])<.55){unlocked=saveCampaignProgress(progressStorage,n,unlocked);if(n===levels.length-1)end(true);else level(n+1)}
+ else if(keyHeld&&Math.hypot(p.x-exitPoint[0],p.y-exitPoint[1])<.55){completeLevel()}
 }
 let depth,frameBuffer,pixels,horizon,focal;
 const qualities={fluid:416,balanced:576,detail:704};
@@ -696,6 +701,25 @@ function draw(){
 let progressStorage;
 try{progressStorage=window.localStorage}catch{}
 let unlocked=readCampaignProgress(progressStorage);
+let records=readLevelRecords(progressStorage);
+
+function completeLevel(){
+ const defeated=foes.filter(enemy=>enemy!==boss&&enemy.hp<=0);
+ const special=defeated.filter(enemy=>enemy.id>=7).length;
+ const points=calculateLevelScore({...attempt,special,normal:defeated.length-special});
+ const previous=records[n];
+ records=saveLevelRecord(progressStorage,records,n,{points,seconds:attempt.seconds});
+ unlocked=saveCampaignProgress(progressStorage,n,unlocked);
+ const record=records[n].points!==previous?.points||records[n].seconds!==previous?.seconds;
+ if(n===levels.length-1){
+  end(true);
+  $('intro').textContent+=' '+points+' punts'+(record?' · Nou rècord':'.');
+ }else{
+  level(n+1);
+  pickupNotice=points+' punts'+(record?' · Nou rècord':'');
+  pickupTime=4;
+ }
+}
 $('start').dataset.level=unlocked;
 if(unlocked>0)$('start').textContent='Continua la campanya';
 
@@ -714,7 +738,9 @@ function showCampaign(){
    $('start').dataset.level=index;
    $('start').onclick(e);
   };
-  row.append(button);list.append(row);
+  row.append(button);
+  if(records[index])row.append(' '+records[index].points+' punts · '+records[index].seconds.toFixed(1)+' s');
+  list.append(row);
  });
  showMenuPanel('campaign');
 }
