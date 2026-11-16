@@ -22,7 +22,7 @@
 </style>
 <canvas id="screen" width="576" height="324" aria-label="Ferro Feral"></canvas>
 <section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">La foneria ha après a fabricar carn. Baixa cinc plantes i apaga el cor que l’alimenta.</p><p id="accountStatus" role="status" hidden></p><div id="menuActions"><button id="start">Entra a la foneria</button><button id="menuCampaign">Campanya</button><button id="accountButton" hidden>Entra amb Google</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
-<section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma Q per saltar i Esc per pausar.</p><p><b>Mòbil</b> · Bolet per moure’t, arrossega la vista per girar i toca FOC, Salt o Arma.</p></div><button id="menuBack">Torna</button></section></section>
+<section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma Q per saltar i Esc per pausar.</p><p><b>Mòbil</b> · Bolet per moure’t, arrossega la vista per girar i toca FOC, Salt o Arma.</p><p><b>Comandament</b> · Estic esquerre per moure’t, dret per girar, RT per disparar, A per saltar, Y per canviar d’arma i Menú per pausar o continuar.</p></div><button id="menuBack">Torna</button></section></section>
 <button id="pauseButton" type="button" aria-label="Pausa">Ⅱ</button>
 <button id="mute" aria-label="Activa o silencia la música">♫</button>
 <div id="touch" aria-label="Controls tàctils">
@@ -307,10 +307,10 @@ function jumpPlayer(){
 function update(dt){
  attempt.seconds+=dt;
  tickBlood(dt);
- const turn=+keys.has('arrowright')-keys.has('arrowleft');
+ const turn=+keys.has('arrowright')-keys.has('arrowleft')+padTurn;
  p.a+=turn*dt*2.3;
- const forward=+keys.has('w')+keys.has('arrowup')-keys.has('s')-keys.has('arrowdown')-stickY;
- const strafe=+keys.has('d')-keys.has('a')+stickX;
+ const forward=+keys.has('w')+keys.has('arrowup')-keys.has('s')-keys.has('arrowdown')-stickY-padMoveY;
+ const strafe=+keys.has('d')-keys.has('a')+stickX+padMoveX;
  const speed=dt*(keys.has('shift')?4.7:3.4)/Math.max(1,Math.hypot(forward,strafe));
  move(p,(Math.cos(p.a)*forward-Math.sin(p.a)*strafe)*speed,(Math.sin(p.a)*forward+Math.cos(p.a)*strafe)*speed,.19);
  const ground=floor(p.x,p.y);
@@ -318,7 +318,7 @@ function update(dt){
  p.jumpTime=Math.max(0,p.jumpTime-dt);
  p.z=Math.min(ceiling-.62,Math.max(ground,p.groundZ+jumpOffset(p.jumpTime)));
  if(forward||strafe)elapsed+=dt*10;
- heat-=dt;flash-=dt;hurt-=dt;if(keys.has(' ')||firePointer!==null)fire();
+ heat-=dt;flash-=dt;hurt-=dt;if(keys.has(' ')||firePointer!==null||padFire)fire();
  updateNavigation();
  for(const e of foes){
   e.hit-=dt;if(e.hp<=0){e.dead+=dt;continue}
@@ -901,7 +901,7 @@ $('start').onclick=e=>{
  }
  accountButton.disabled=false;
  state='playing';$('menu').hidden=true;document.body.classList.add('playing');initAudio();
- if(e?.pointerType!=='touch'&&matchMedia('(pointer:fine)').matches)screen.requestPointerLock?.()?.catch?.(()=>{});
+ if(e?.pointerType!=='touch'&&e?.pointerType!=='gamepad'&&matchMedia('(pointer:fine)').matches)screen.requestPointerLock?.()?.catch?.(()=>{});
 };
 function saveSettings(){
  settings.music=!muted;
@@ -996,8 +996,35 @@ for(const event of ['pointerup','pointercancel','lostpointercapture']){
 document.addEventListener('mousemove',e=>{if(state==='playing'&&document.pointerLockElement===screen)p.a+=e.movementX*.003});
 prepareEnemies();
 level(0);let last=0;
+let padMoveX=0,padMoveY=0,padTurn=0,padFire=false;
+let padButtonMask=0,padIndex=-1;
+function gamepadAxis(value=0){
+ const magnitude=Math.min(1,Math.abs(value));
+ return magnitude<=.18?0:Math.sign(value)*(magnitude-.18)/(1-.18);
+}
+function readGamepad(){
+ const pads=navigator.getGamepads?.();
+ const pad=Array.from(pads??[]).find(device=>device?.connected&&device.mapping==='standard');
+ padMoveX=gamepadAxis(pad?.axes[0]);
+ padMoveY=gamepadAxis(pad?.axes[1]);
+ padTurn=gamepadAxis(pad?.axes[2]);
+ padFire=(pad?.buttons[7]?.value??0)>.25;
+ const mask=(pad?.buttons[0]?.pressed?1:0)|(pad?.buttons[3]?.pressed?2:0)|(pad?.buttons[9]?.pressed?4:0);
+ const index=pad?.index??-1;
+ const pressed=index===padIndex?mask&~padButtonMask:0;
+ padIndex=index;
+ padButtonMask=mask;
+ if(state==='playing'){
+  if(pressed&4){pause();return}
+  if(pressed&1)jumpPlayer();
+  if(pressed&2)$('swap').onclick();
+ }else if((pressed&4)&&$('menuPanel').hidden){
+  $('start').onclick({pointerType:'gamepad'});
+ }
+}
 function frame(now){
  const dt=Math.min(.05,(now-last)/1000);last=now;
+ readGamepad();
  if(state==='playing'){time+=dt;update(dt);score()}
  if(state==='playing'||redraw){draw();redraw=false}
  requestAnimationFrame(frame);
