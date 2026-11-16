@@ -118,7 +118,7 @@ function ray(x,y,dx,dy,startZ,endZ,distance){
 const enemySheets=Array.from({length:types.length},()=>new Image());
 const weaponSheet=new Image();
 const enemyPoses=['idle','walk','run','jump','shoot','hit','death'];
-const jumpDuration=.76;
+const jumpDuration=.98, attackDuration=.82, hitDuration=.24;
 function facingView(facing,bearing){
  return (Math.round(angle(bearing-facing)*4/Math.PI)+8)%8;
 }
@@ -195,12 +195,12 @@ function fire(){
   const distance=Math.hypot(e.x-p.x,e.y-p.y);
   const drop=weapon===1?Math.max(.30,1-distance*.13):1;
   e.hp-=gun.damage*drop/(1+i*.42)*(e.id===8&&!e.wind?.55:1);
-  e.hit=.17;
+  e.hit=hitDuration;
   if(weapon===4){
    for(const other of foes){
     const dx=other.x-e.x,dy=other.y-e.y,d=Math.hypot(dx,dy);
     if(other===e||other.hp<=0||d>1.5||!ray(e.x,e.y,dx/d,dy/d,floor(e.x,e.y)+.52,floor(other.x,other.y)+.52,d))continue;
-    other.hp-=44*(1-d/1.6);other.hit=.17;
+    other.hp-=44*(1-d/1.6);other.hit=hitDuration;
    }
   }
  });
@@ -238,14 +238,14 @@ function update(dt){
   const melee=kind==='runner'||kind==='charger'||kind==='ghost';
   const range=melee?2.2:kind==='sniper'?11:6;
   e.jump=Math.max(0,e.jump-dt);e.jumpWait-=dt;
-  if(see&&(e.wind>0||d<9))e.facing=Math.atan2(dy,dx);
+  if(see&&(e.wind>0||d<9))e.facing+=Math.max(-dt*3,Math.min(dt*3,angle(Math.atan2(dy,dx)-e.facing)));
   if(e.hit>0)e.wind=0;
   const wasWind=e.wind;
   e.reload-=dt;e.wind=Math.max(0,e.wind-dt);
   if(see&&d<range&&e.reload<=0&&e.jump<=0){
-   e.wind=.54;e.reload=kind==='sniper'?2.5:kind==='burst'?.85:1.45;
+   e.wind=attackDuration;e.reload=kind==='sniper'?2.9:kind==='burst'?1.15:1.75;
   }
-  if(wasWind>.25&&e.wind<=.25&&see&&d<range){
+  if(wasWind>attackDuration*.48&&e.wind<=attackDuration*.48&&see&&d<range){
    if(melee&&d<.76)damage(kind==='charger'?21:12);
    else{
     const base=Math.atan2(dy,dx), offsets=kind==='boss'?[-.35,-.17,0,.17,.35]:kind==='burst'?[-.15,0,.15]:[0];
@@ -256,19 +256,19 @@ function update(dt){
   const pathLength=roomDistance.values[y*mapSize+x];
   e.walk=see?d<9&&d>(melee?.57:kind==='sniper'?7:3):pathLength>0&&pathLength<=10;
   if(e.wind>0||(kind==='boss'&&!see))e.walk=false;
-  e.run=e.walk&&see&&d>2.8;
+  e.run=e.walk&&see&&d>(e.run?3.1:4.0);
   if(e.run&&d>3.8&&d<5.2&&e.jumpWait<=0&&e.jump<=0&&(e.id+Math.round(e.phase*10))%3===0){
    e.jump=jumpDuration;e.jumpWait=22+e.phase%4;
   }
-  if(e.walk)e.travel+=dt*(e.run?19:12);
+  if(e.walk)e.travel=(e.travel+dt*(e.run?10:6.5))%12;
 
   if(e.walk&&d>.05){
-   const speed=([2.4,1.2,2,2.1,1, .87,2.1,1,1.3,1.1][e.id]+(kind==='charger'&&see?1:0))*dt*(e.run?1.43:1)*(e.jump>0?1.16:1);
+   const speed=([2.4,1.2,2,2.1,1, .87,2.1,1,1.3,1.1][e.id]+(kind==='charger'&&see?.45:0))*dt*.64*(e.run?1.30:1);
    if(!see){
     const next=neighbors.find(([ox,oy])=>grid[y+oy]?.[x+ox]===0&&roomDistance.values[(y+oy)*mapSize+x+ox]===pathLength-1);
     if(next){
      const vx=x+next[0]+.5-e.x,vy=y+next[1]+.5-e.y,dist=Math.hypot(vx,vy);
-     e.facing=Math.atan2(vy,vx);
+     e.facing+=Math.max(-dt*3,Math.min(dt*3,angle(Math.atan2(vy,vx)-e.facing)));
      if(dist>0)move(e,vx/dist*Math.min(dist,speed),vy/dist*Math.min(dist,speed),.21);
     }
     continue;
@@ -525,10 +525,12 @@ function draw(){
  for(const e of foes){
   if(!enemiesReady)continue;
   const pose=e.hp<=0?'death':e.hit>0?'hit':e.jump>0?'jump':e.wind>0?'shoot':e.run?'run':e.walk?'walk':'idle';
-  const elapsedFrame=pose==='death'?e.dead*21:pose==='shoot'?(1-e.wind/.54)*12:pose==='hit'?(1-e.hit/.17)*12:pose==='jump'?(1-e.jump/jumpDuration)*12:(pose==='idle'?time*9+e.phase*12:e.travel)%12;
+  const elapsedFrame=pose==='death'?e.dead*12:pose==='shoot'?(1-e.wind/attackDuration)*12:pose==='hit'?(1-e.hit/hitDuration)*12:pose==='jump'?(1-e.jump/jumpDuration)*12:(pose==='idle'?time*5+e.phase*12:e.travel)%12;
   const frame=Math.max(0,Math.min(11,Math.floor(elapsedFrame)));
-  const view=facingView(e.facing,Math.atan2(p.y-e.y,p.x-e.x));
-  scene.push({x:e.x,y:e.y,art:enemySheets[e.id],frameX:frame*80,frameY:(view*enemyPoses.length+enemyPoses.indexOf(pose))*80,frameSize:80,size:e.id===9?1.48:1,
+  const bearing=Math.atan2(p.y-e.y,p.x-e.x);
+  const view=facingView(e.facing,bearing);
+  if(e.view===undefined||Math.abs(angle(bearing-e.facing-e.view*Math.PI/4))>Math.PI*.15)e.view=view;
+  scene.push({x:e.x,y:e.y,art:enemySheets[e.id],frameX:frame*80,frameY:(e.view*enemyPoses.length+enemyPoses.indexOf(pose))*80,frameSize:80,size:e.id===9?1.48:1,
    offset:e.hp>0?hopHeight(e):0,hit:e.hit>0,enemy:e.id});
 
  }
@@ -544,19 +546,20 @@ function draw(){
  scene.sort((a,b)=>b.z-a.z);
  for(const o of scene){
   if(o.z<.14)continue;
-  const w=Math.floor(focal/o.z*o.size);
+  const h=Math.floor(focal/o.z*o.size),w=o.enemy===undefined?h:Math.round(h*1.20);
   const left=Math.floor(W/2+W/2*o.l/(o.z*plane)-w/2);
   const altitude=o.altitude??floor(o.x,o.y)+(o.offset||0);
-  const top=Math.floor(horizon+(eye-altitude)*focal/o.z-w);
+  const top=Math.floor(horizon+(eye-altitude)*focal/o.z-h);
   if(w<1)continue;
+  if(o.art){ctx.save();ctx.beginPath();}
   if(o.art&&!o.fixture){
    const li=lightAt(o.x,o.y);
    const intensity=(lighting[li]+lighting[li+1]+lighting[li+2])/410;
-   const boost=o.hit?1.8:.91+intensity+(o.enemy===9?reactorPulse()*.34:0);
-   ctx.filter='contrast(1.13) saturate(1.13) brightness('+boost.toFixed(2)+')';
+   const boost=o.hit?1.32:1.11+Math.min(.37,intensity)+(o.enemy===9?reactorPulse()*.18:0);
+   ctx.filter='brightness('+boost.toFixed(2)+')';
   }
   for(let x=Math.max(left,0);x<Math.min(W,left+w);x++){
-   const start=Math.max(0,top),end=Math.min(H,top+w);
+   const start=Math.max(0,top),end=Math.min(H,top+h);
    let y=start;
    while(y<end){
     while(y<end&&o.z>=depth[y*W+x])y++;
@@ -564,8 +567,7 @@ function draw(){
     while(y<end&&o.z<depth[y*W+x])y++;
     if(y===begin)continue;
     if(o.art){
-     const size=o.frameSize??o.art.width,sx=Math.min(size-1,Math.floor((x-left)*size/w));
-     ctx.drawImage(o.art,(o.frameX??0)+sx,(o.frameY??0)+(begin-top)*size/w,1,(y-begin)*size/w,x,begin,1,y-begin);
+     ctx.rect(x,begin,1,y-begin);
     }else{
      const radius=Math.abs(x-left-w/2)/(w/2);
      const inset=w*.23*radius;
@@ -574,7 +576,13 @@ function draw(){
     }
    }
   }
-  ctx.filter='none';
+  if(o.art){
+   ctx.clip();
+   const size=o.frameSize??o.art.width;
+   ctx.drawImage(o.art,o.frameX??0,o.frameY??0,size,size,left,top,w,h);
+   ctx.restore();
+  }
+
  }
  drawAtmosphere(ca,sa,plane,eye,core);
  ctx.save();
