@@ -14,6 +14,7 @@
 #touchActions{right:max(16px,env(safe-area-inset-right));display:flex;align-items:end;gap:10px}
 #touchActions button{pointer-events:auto;touch-action:none;border:2px solid #f6cba58c;color:#fff0d0;background:#27182ad9;padding:0;min-width:62px;min-height:56px;border-radius:14px}
 #touchActions #fireButton{width:clamp(77px,19vw,112px);min-height:0;aspect-ratio:1;border-radius:50%;background:#8d3829e6;font-size:20px}
+@media(max-width:480px) and (orientation:portrait){#touchActions{gap:6px}#touchActions button{min-width:48px}#touchActions #fireButton{width:64px}}
 #touchActions button:active{background:#c4603e}
 #mute{position:fixed;right:10px;top:10px;padding:8px;background:#21141c;color:#fff0d0}
 #menu{overflow:auto;align-content:safe center}#menuActions[hidden]{display:none}#menuActions{display:flex;flex-wrap:wrap;gap:8px;max-width:540px}#menuActions button:not(#start),#menuBack{background:#2f2534;color:#fff0d0;border:1px solid #aa7766}#menuPanel{max-width:540px;background:#1b1320;padding:16px;border:1px solid #a66c57}#menuPanel h2{margin:0 0 9px;font-size:20px}#menuPanel label{display:block;margin:12px 0}#menuPanel select{background:#362634;color:#fff0d0;padding:5px}#menuPanel p{margin:8px 0}#pauseButton{position:fixed;right:62px;top:10px;padding:8px 12px;background:#21141c;color:#fff0d0;display:none}body.playing #pauseButton{display:block}
@@ -21,12 +22,12 @@
 </style>
 <canvas id="screen" width="576" height="324" aria-label="Ferro Feral"></canvas>
 <section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">La foneria ha après a fabricar carn. Baixa cinc plantes i apaga el cor que l’alimenta.</p><p id="accountStatus" role="status" hidden></p><div id="menuActions"><button id="start">Entra a la foneria</button><button id="menuCampaign">Campanya</button><button id="accountButton" hidden>Entra amb Google</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
-<section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma i Esc per pausar.</p><p><b>Mòbil</b> · Bolet per moure’t, arrossega la vista per girar i toca FOC o Arma.</p></div><button id="menuBack">Torna</button></section></section>
+<section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma Q per saltar i Esc per pausar.</p><p><b>Mòbil</b> · Bolet per moure’t, arrossega la vista per girar i toca FOC, Salt o Arma.</p></div><button id="menuBack">Torna</button></section></section>
 <button id="pauseButton" type="button" aria-label="Pausa">Ⅱ</button>
 <button id="mute" aria-label="Activa o silencia la música">♫</button>
 <div id="touch" aria-label="Controls tàctils">
  <div id="joystick" aria-label="Joystick de moviment"><div id="stick"></div></div>
- <div id="touchActions"><button id="swap" type="button">Arma</button><button id="fireButton" type="button">FOC</button></div>
+ <div id="touchActions"><button id="swap" type="button">Arma</button><button id="jumpButton" type="button" aria-label="Salta">Salt</button><button id="fireButton" type="button">FOC</button></div>
 </div>
 <script src="./campaign.js"></script>
 <script src="./account.js"></script>
@@ -103,7 +104,7 @@ function level(index){
  boss.homeX=boss.x;boss.homeY=boss.y;boss.maxHp=boss.hp=[125,185,220,265,340][n];
  foes.push(boss);keyHeld=keyDropped=false;
  const [sx,sy]=rooms[chapter.route[0]],[nx,ny]=rooms[chapter.route[1]];
- p={x:sx+.5,y:sy+.5,a:Math.atan2(ny-sy,nx-sx),z:heights[sy][sx],hp:100,ammo:20};
+ p={x:sx+.5,y:sy+.5,a:Math.atan2(ny-sy,nx-sx),z:heights[sy][sx],groundZ:heights[sy][sx],jumpTime:0,hp:100,ammo:20};
  shots=[];blood.length=0;heat=flash=hurt=0;
  const [ex,ey]=rooms[chapter.route.at(-1)];
  exitPoint=[ex+2.5,ey+.5];
@@ -293,6 +294,16 @@ function updateNavigation(){
  }
  roomDistance={start,values};
 }
+const playerJumpDuration=.72;
+const playerJumpHeight=.64;
+function jumpOffset(remaining){
+ const phase=remaining/playerJumpDuration;
+ return 4*playerJumpHeight*phase*(1-phase);
+}
+function jumpPlayer(){
+ if(state!=='playing'||p.jumpTime>0)return;
+ p.jumpTime=playerJumpDuration;
+}
 function update(dt){
  attempt.seconds+=dt;
  tickBlood(dt);
@@ -302,7 +313,10 @@ function update(dt){
  const strafe=+keys.has('d')-keys.has('a')+stickX;
  const speed=dt*(keys.has('shift')?4.7:3.4)/Math.max(1,Math.hypot(forward,strafe));
  move(p,(Math.cos(p.a)*forward-Math.sin(p.a)*strafe)*speed,(Math.sin(p.a)*forward+Math.cos(p.a)*strafe)*speed,.19);
- p.z+=(floor(p.x,p.y)-p.z)*Math.min(1,dt*13);
+ const ground=floor(p.x,p.y);
+ p.groundZ+=(ground-p.groundZ)*Math.min(1,dt*13);
+ p.jumpTime=Math.max(0,p.jumpTime-dt);
+ p.z=Math.min(ceiling-.62,Math.max(ground,p.groundZ+jumpOffset(p.jumpTime)));
  if(forward||strafe)elapsed+=dt*10;
  heat-=dt;flash-=dt;hurt-=dt;if(keys.has(' ')||firePointer!==null)fire();
  updateNavigation();
@@ -919,7 +933,7 @@ function pause(){
  showMenuPanel();$('menuRestart').hidden=false;document.exitPointerLock?.();
  accountButton.disabled=true;
  state='pause';document.body.classList.remove('playing');keys.clear();resetTouch();
- $('intro').textContent='WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma.';
+ $('intro').textContent='WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma i Q per saltar.';
  $('start').textContent='Continua';$('menu').hidden=false;
 }
 let wasLocked=false;
@@ -930,6 +944,7 @@ window.addEventListener('keydown',e=>{
  const k=e.key.toLowerCase();keys.add(k);
  if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k))e.preventDefault();
  if(/^[1-5]$/.test(k)&&owned.has(Number(k)-1))weapon=Number(k)-1;
+ if(k==='q'&&!e.repeat)jumpPlayer();
  if(k==='escape')pause();
 });
 window.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));
@@ -963,6 +978,7 @@ fireButton.addEventListener('pointerdown',e=>{
  if(state!=='playing'||firePointer!==null)return;
  e.preventDefault();firePointer=e.pointerId;fireButton.setPointerCapture(e.pointerId);fire();
 });
+$('jumpButton').onclick=jumpPlayer;
 screen.addEventListener('pointerdown',e=>{
  if(state!=='playing')return;
  if(e.pointerType==='mouse'){fire();return}
