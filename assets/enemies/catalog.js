@@ -126,3 +126,19 @@ const types = ferroEnemyWorlds.flatMap((world, theme) =>
   size, special, world, name:ferroEnemyNames[theme][slot] ?? ferroWorldLevels[theme][slot-15].bossName
  }))
 );
+
+// Keep the original IDs and boss slots stable for existing campaign content.
+const islandReinforcements = [
+ ['Mariner del llautó','mariner-del-llauto','strafer',35,1.75,'walker',1],
+ ['Escarabat de babord','escarabat-de-babord','burst',40,1.56,'crawler',1.04],
+ ['Bus de les fosses','bus-de-les-fosses','guard',54,1.06,'bulwark',1.05],
+ ['Bruixa del nacre','bruixa-del-nacre','spitter',34,1.48,'walker',1],
+ ['Manta dels esculls','manta-dels-esculls','strafer',30,1.94,'winged',1.04],
+ ['Canoner de sal','canoner-de-sal','tank',62,.92,'bulwark',1.12]
+].map(([name, atlas, kind, hp, speed, body, size], i) => ({
+ id:types.length+i, slot:ferroEnemyProfiles.length+i, theme:0, world:ferroEnemyWorlds[0],
+ name, atlas, kind, hp, speed, body, size, special:false
+}));
+
+types.push(...islandReinforcements);
+const typesByWorld = ferroEnemyWorlds.map((_, theme) => types.filter(type => type.theme===theme));

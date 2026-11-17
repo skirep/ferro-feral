@@ -30,7 +30,7 @@
  <div id="touchActions"><button id="swap" type="button">Arma</button><button id="jumpButton" type="button" aria-label="Salta">Salt</button><button id="fireButton" type="button">FOC</button></div>
 </div>
 <script src="./assets/levels/catalog.js"></script>
-<script src="./assets/levels/illa-maleida.js"></script>
+<script src="./assets/levels/illa-maleida.js?v=reinforcements1"></script>
 <script src="./assets/levels/neon-apocalypse.js"></script>
 <script src="./assets/levels/regne-oblidats.js"></script>
 <script src="./assets/levels/biohazard-zero.js"></script>
@@ -40,8 +40,8 @@
 <script src="./campaign.js"></script>
 <script src="./account.js"></script>
 <script src="./supabase-config.js"></script>
-<script src="./assets/enemies/catalog.js"></script>
-<script src="./assets/enemies/sprites.js?v=scale2"></script>
+<script src="./assets/enemies/catalog.js?v=reinforcements1"></script>
+<script src="./assets/enemies/sprites.js?v=reinforcements1"></script>
 <script src="./assets/combat.js"></script>
 <script src="./assets/levels/arena.js?v=1"></script>
 <script src="./assets/music.js"></script>
@@ -110,7 +110,7 @@ function level(index){
  }
  ceiling=2.58;
  const spawn=(x,y,slot,i)=>{
-  const type=types[chapter.theme*ferroEnemyProfiles.length+slot];
+  const type=typesByWorld[chapter.theme][slot];
   return {x:x+.5,y:y+.5,type,hp:type.hp,phase:i*.71,reload:1+i*.1,hit:0,dead:0,wind:0,facing:i*1.7,jump:0,travel:0,run:false};
  };
  foes=chapter.roster.map((id,i)=>{
@@ -394,6 +394,10 @@ function update(dt){
   if(e.wind>0||(e===boss&&!see))e.walk=false;
   e.run=e.walk&&see&&d>(e.run?3.1:4.0);
   if(e.walk)e.travel=(e.travel+dt*(e.run?10:6.5))%12;
+  if(arena&&e.type.atlas&&e.run&&e.jump<=0&&time>=e.nextHop){
+   e.jump=jumpDuration;
+   e.nextHop=time+2.8+e.phase%1;
+  }
 
   if(e.walk&&d>.05){
    const speed=(e.type.speed+(kind==='charger'&&see?.45:0))*dt*.64*(e.run?1.30:1);
@@ -973,7 +977,9 @@ async function startArena(e){
  grid=map.grid;heights=grid.map(row=>row.map(()=>0));ceiling=2.58;
  const [x,y]=map.start;
  p={x,y,a:Math.PI/4,z:0,groundZ:0,jumpTime:0,hp:100,ammo:240};
- foes=map.spawns.map((enemy,i)=>({...enemy,hp:enemy.type.hp,phase:i*.71,reload:.6+(i%13)*.13,hit:0,dead:0,wind:0,facing:i*1.7,jump:0,travel:0,run:false,nextTarget:time+(i%20)*.015}));
+ foes=map.spawns.map((enemy,i)=>({...enemy,hp:enemy.type.hp,phase:i*.71,reload:.6+(i%13)*.13,
+  hit:0,dead:0,wind:0,facing:i*1.7,jump:0,travel:0,run:false,
+  nextTarget:time+(i%20)*.015,nextHop:time+.6+(i%11)*.12}));
  boss={x,y,hp:0};
  shots=[];blood.length=0;heat=flash=hurt=0;
  keyHeld=keyDropped=false;

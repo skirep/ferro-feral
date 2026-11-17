@@ -5,7 +5,7 @@ import { Script, runInNewContext } from 'node:vm';
 
 const read = path => readFileSync(new URL(path, import.meta.url), 'utf8');
 const html = read('../index.html');
-const scripts = Array.from(html.matchAll(/<script src="\.\/([^"]+)"><\/script>/g), match => match[1]);
+const scripts = Array.from(html.matchAll(/<script src="\.\/([^"?]+)(?:\?[^"]*)?"><\/script>/g), match => match[1]);
 const source = scripts.slice(0, scripts.indexOf('campaign.js')+1).map(path => read('../'+path)).join('\n');
 const game = html.match(/<script>([\s\S]*?)<\/script>/)[1];
 const {
@@ -47,9 +47,27 @@ test('each map connects distinct, orthogonally adjacent rooms', () => {
 });
 
 test('all campaign enemy and weapon sprite files exist', () => {
-  const ids = new Set(levels.flatMap(level => [...level.roster, level.boss]));
-  const files = [...ids].map(id => `enemy-${String(id + 1).padStart(2, '0')}.webp`);
-  for (const file of [...files, 'weapons.webp']) {
+  const { typesByWorld, spawns } = runInNewContext(source + [
+    read('../assets/enemies/catalog.js'),
+    read('../assets/levels/arena.js'),
+    '({typesByWorld, spawns: ferroArena.layout(37, types).spawns})'
+  ].join('\n'));
+  const files = new Set(['weapons.webp']);
+  for (const { theme, roster, boss } of levels) {
+    for (const slot of [...roster, boss]) {
+      const type = typesByWorld[theme][slot];
+      assert.equal(type?.slot, slot);
+      if (type.atlas) {
+        files.add('enemies/360/' + type.atlas + '.webp');
+        assert.equal(spawns.filter(spawn => spawn.type === type).length, 2);
+      }
+    }
+  }
+  const art = read('../assets/enemies/sprites.js');
+  for (const [, prefix] of art.matchAll(/'([a-z-]+)-sprites\.png'/g)) {
+    for (const pose of ['sprites', 'walk', 'jump', 'shoot']) files.add(`enemies/${prefix}-${pose}.png`);
+  }
+  for (const file of files) {
     assert.ok(statSync(new URL('../assets/' + file, import.meta.url)).size > 0, file);
   }
 });
