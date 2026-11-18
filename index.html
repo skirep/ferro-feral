@@ -39,7 +39,7 @@
 </style>
 <canvas id="screen" width="576" height="324" aria-label="Ferro Feral"></canvas>
 <section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">Travessa la nau, salta per sobre les bretxes i recupera les claus del Llindar.</p><p id="accountStatus" role="status" hidden></p><div id="menuActions"><button id="start">Inicia la campanya</button><button id="menuArena">Arena de quatre sales</button><button id="menuArenaExit" hidden>Surt de l’arena</button><button id="menuCampaign">Tria un món</button><button id="menuBestiary">Bestiari 360°</button><button id="accountButton" hidden>Entra amb Google</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
-<section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><label>Món <select id="worldSelect"></select></label><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label>Volum dels efectes <input id="fxVolume" type="range" min="0" max="1" step=".05"></label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label><label><input id="effectsOption" type="checkbox" checked> Esteles, impactes i llum animada</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–7 per canviar d’arma, Q per saltar i Esc per pausar.</p><p><b>Mòbil</b> · Bolet per moure’t, arrossega la vista per girar i toca FOC, Salt o Arma.</p><p><b>Comandament</b> · Estic esquerre per moure’t, dret per girar, RT per disparar, A per saltar, Y per canviar d’arma i Menú per pausar o continuar.</p></div>
+<section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><label>Món <select id="worldSelect"></select></label><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label>Volum dels efectes <input id="fxVolume" type="range" min="0" max="1" step=".05"></label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label><label><input id="effectsOption" type="checkbox" checked> Esteles, impactes i llum animada</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–7 per canviar d’arma, Q per saltar i Esc per pausar.</p><p><b>Mòbil</b> · Mou el bolet per caminar o porta’l fins a la vora per córrer. Pots prémer Salt mentre mantens el bolet. Arrossega la vista per girar i toca FOC o Arma.</p><p><b>Comandament</b> · Estic esquerre per moure’t, dret per girar, RT per disparar, A per saltar, Y per canviar d’arma i Menú per pausar o continuar.</p></div>
 <div id="bestiaryPanel" hidden>
  <h2>Bestiari 360°</h2>
  <div id="bestiaryControls">
@@ -545,7 +545,8 @@ function update(dt){
  p.a+=turn*dt*2.3;
  const forward=+keys.has('w')+keys.has('arrowup')-keys.has('s')-keys.has('arrowdown')-stickY-padMoveY;
  const strafe=+keys.has('d')-keys.has('a')+stickX+padMoveX;
- const speed=dt*(keys.has('shift')?4.7:3.4)/Math.max(1,Math.hypot(forward,strafe));
+ const sprint=keys.has('shift')||Math.hypot(stickX,stickY)>=.9;
+ const speed=dt*(sprint?4.7:3.4)/Math.max(1,Math.hypot(forward,strafe));
  const previous=[p.x,p.y];
  movePlayer((Math.cos(p.a)*forward-Math.sin(p.a)*strafe)*speed,(Math.sin(p.a)*forward+Math.cos(p.a)*strafe)*speed,dt);
  if(arena){
@@ -1597,7 +1598,13 @@ fireButton.addEventListener('pointerdown',e=>{
  if(state!=='playing'||firePointer!==null)return;
  e.preventDefault();firePointer=e.pointerId;fireButton.setPointerCapture(e.pointerId);fire();
 });
-$('jumpButton').onclick=jumpPlayer;
+const jumpButton=$('jumpButton');
+jumpButton.addEventListener('pointerdown',e=>{
+ if(state!=='playing'||e.button!==0)return;
+ e.preventDefault();
+ jumpPlayer();
+});
+jumpButton.addEventListener('click',e=>{if(e.detail===0)jumpPlayer()});
 screen.addEventListener('pointerdown',e=>{
  if(state!=='playing')return;
  if(e.pointerType==='mouse'){fire();return}
