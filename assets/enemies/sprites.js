@@ -35,7 +35,7 @@ const ferroEnemySprites = (() => {
  ];
  const foot=177, motionFrames=6, motionColumns=12;
  const motionPoses=['walk','jump','shoot'];
- const directionalCell=80, directionalFrames=12, views=8;
+ const directionalFrames=12, views=8;
  const bodyHeight=140, sideMargin=7, topMargin=5, sampleStep=3;
  const directionWidths=[1,.93,.80,.91,.96,.91,.80,.93];
 
@@ -124,11 +124,11 @@ const ferroEnemySprites = (() => {
    Promise.all(motionPoses.map(pose=>image(prefix+'-'+pose+'.png'))),
    Promise.all(directionalTypes.map(async type=>{
     const sheet=await image('360/'+type.atlas+'.webp');
-    if(sheet.naturalWidth!==directionalCell*directionalFrames||
-       sheet.naturalHeight!==directionalCell*views*motionPoses.length){
+    const cell=sheet.naturalWidth/directionalFrames;
+    if(![80,96].includes(cell)||sheet.naturalHeight!==cell*views*motionPoses.length){
      throw new Error('Invalid directional enemy atlas: '+type.atlas);
     }
-    return [type.slot,sheet];
+    return [type.slot,{sheet,cell}];
    }))
   ]).then(([base,sheets,directional])=>{
    const baseAlpha=readAlpha(base);
@@ -180,7 +180,7 @@ const ferroEnemySprites = (() => {
   return ((Math.round(relative/step)%views)+views)%views;
  }
 
- function directionalFrame(sheet,view,motion,pose,frame){
+ function directionalFrame({sheet,cell},view,motion,pose,frame){
   const image=canvas(size),ctx=image.getContext('2d');
   const animated=motionPoses.includes(motion);
   const column=animated?frame:0;
@@ -193,8 +193,8 @@ const ferroEnemySprites = (() => {
    ctx.rotate(fall*1.47);
    ctx.scale(1-.15*fall,1-.58*fall);
   }
-  ctx.drawImage(sheet,column*directionalCell,row*directionalCell,directionalCell,directionalCell,
-   -size/2,-size*73/directionalCell,size,size);
+  ctx.drawImage(sheet,column*cell,row*cell,cell,cell,
+   -size/2,-size*73/80,size,size);
   ctx.resetTransform();
   if(pose==='hit')shade(ctx,view,Math.sin(Math.PI*frame/11));
   return image;

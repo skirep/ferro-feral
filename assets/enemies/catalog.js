@@ -120,10 +120,14 @@ const ferroEnemyNames = [
  ]
 ];
 
+const islandDirectional = [
+ 'corc-de-quilla','cranc-de-la-sentina','corsari-cosit','espectre-del-fanal','vigia-dels-esculls'
+];
+
 const types = ferroEnemyWorlds.flatMap((world, theme) =>
  ferroEnemyProfiles.map(([kind,hp,speed,body,crest,arm,size,special], slot) => ({
   id:theme*ferroEnemyProfiles.length+slot, theme, slot, kind, hp, speed, body, crest, arm,
-  size, special, world, name:ferroEnemyNames[theme][slot] ?? ferroWorldLevels[theme][slot-15].bossName
+  size, special, world, atlas:theme===0?islandDirectional[slot]:undefined, name:ferroEnemyNames[theme][slot] ?? ferroWorldLevels[theme][slot-15].bossName
  }))
 );
 
