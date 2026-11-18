@@ -36,10 +36,23 @@
 #bestiaryArena{font-size:13px;color:#acdacf}
 @media(max-width:420px){#menu:has(#bestiaryPanel:not([hidden])){padding:12px}#menuPanel:has(#bestiaryPanel:not([hidden])){padding:10px}#bestiaryViews{gap:4px}}
 #campaignLevels li{margin:6px 0}#campaignLevels button{padding:8px 12px;text-align:left}#campaignLevels button:disabled{opacity:.48;cursor:default}
+body.photographing #mute{display:none}
+#photoPanel{position:fixed;inset:0;pointer-events:none;color:#fff0d0}
+#photoPanel[hidden]{display:none}
+#photoToolbar,#photoMove{position:absolute;background:#11121de8;border:1px solid #e6cca868;padding:8px;pointer-events:auto}
+#photoToolbar{top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));left:max(10px,env(safe-area-inset-left));display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:13px}
+#photoToolbar button,#photoMove button,#photoButton{min-height:42px;padding:8px 11px}
+#photoToolbar label{display:flex;align-items:center;gap:6px}
+#photoToolbar input{width:min(22vw,140px);accent-color:#ff6847}
+#photoButton{position:fixed;right:108px;top:10px;display:none;background:#21141c;color:#fff0d0}
+body.playing #photoButton{display:block}
+#photoMove{bottom:max(12px,env(safe-area-inset-bottom));left:12px;display:none;grid-template-columns:repeat(3,42px);gap:4px}
+#photoMove button{font-size:17px;padding:0;touch-action:none}
+@media(any-pointer:coarse){#photoMove{display:grid}}
 </style>
 <canvas id="screen" width="576" height="324" aria-label="Ferro Feral"></canvas>
 <section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">Travessa la nau, salta per sobre les bretxes i recupera les claus del Llindar.</p><p id="accountStatus" role="status" hidden></p><div id="menuActions"><button id="start">Inicia la campanya</button><button id="menuArena">Arena de quatre sales</button><button id="menuArenaExit" hidden>Surt de l’arena</button><button id="menuCampaign">Tria un món</button><button id="menuBestiary">Bestiari 360°</button><button id="accountButton" hidden>Entra amb Google</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
-<section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><label>Món <select id="worldSelect"></select></label><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label>Volum dels efectes <input id="fxVolume" type="range" min="0" max="1" step=".05"></label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label><label><input id="effectsOption" type="checkbox" checked> Esteles, impactes i llum animada</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–7 per canviar d’arma, Q per saltar i Esc per pausar.</p><p><b>Mòbil</b> · Mou el bolet per caminar o porta’l fins a la vora per córrer. Pots prémer Salt mentre mantens el bolet. Arrossega la vista per girar i toca FOC o Arma.</p><p><b>Comandament</b> · Estic esquerre per moure’t, dret per girar, RT per disparar, A per saltar, Y per canviar d’arma i Menú per pausar o continuar.</p></div>
+<section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><label>Món <select id="worldSelect"></select></label><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label>Volum dels efectes <input id="fxVolume" type="range" min="0" max="1" step=".05"></label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label><label><input id="effectsOption" type="checkbox" checked> Esteles, impactes i llum animada</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–7 per canviar d’arma, Q per saltar, P per obrir el mode foto i Esc per pausar.</p><p><b>Mòbil</b> · Mou el bolet per caminar o porta’l fins a la vora per córrer. Pots prémer Salt mentre mantens el bolet. Arrossega la vista per girar i toca FOC o Arma.</p><p><b>Comandament</b> · Estic esquerre per moure’t, dret per girar, RT per disparar, A per saltar, Y per canviar d’arma i Menú per pausar o continuar.</p></div>
 <div id="bestiaryPanel" hidden>
  <h2>Bestiari 360°</h2>
  <div id="bestiaryControls">
@@ -56,6 +69,24 @@
 </div>
 <button id="menuBack">Torna</button></section></section>
 <button id="pauseButton" type="button" aria-label="Pausa">Ⅱ</button>
+<button id="photoButton" type="button">Foto</button>
+<div id="photoPanel" hidden>
+ <div id="photoToolbar" role="toolbar" aria-label="Mode foto">
+  <strong>Mode foto</strong>
+  <label>Zoom <input id="photoZoom" type="range" min="0.7" max="2" step=".05" value="1"></label>
+  <button id="photoSave" type="button">Desa PNG</button>
+  <button id="photoExit" type="button">Torna al joc</button>
+  <output id="photoStatus">Arrossega per mirar · WASD per moure’t · Q/E per pujar i baixar</output>
+ </div>
+ <div id="photoMove" aria-label="Mou la càmera">
+  <button type="button" data-photo-key="q" aria-label="Puja">+</button>
+  <button type="button" data-photo-key="w" aria-label="Endavant">↑</button>
+  <button type="button" data-photo-key="e" aria-label="Baixa">−</button>
+  <button type="button" data-photo-key="a" aria-label="Esquerra">←</button>
+  <button type="button" data-photo-key="s" aria-label="Enrere">↓</button>
+  <button type="button" data-photo-key="d" aria-label="Dreta">→</button>
+ </div>
+</div>
 <button id="mute" aria-label="Activa o silencia la música">♫</button>
 <div id="touch" aria-label="Controls tàctils">
  <div id="joystick" aria-label="Joystick de moviment"><div id="stick"></div></div>
@@ -73,17 +104,19 @@
 <script src="./assets/levels/illa-sputnik.js?v=sun"></script>
 <script src="./assets/sputnik-art.js?v=wildlife"></script>
 <script src="./assets/sputnik-wildlife.js"></script>
-<script src="./assets/sputnik-sun.js"></script>
+<script src="./assets/sputnik-sun.js?v=light"></script>
+<script src="./assets/photo.js"></script>
 <script src="./campaign.js?v=sputnik"></script>
 <script src="./account.js"></script>
 <script src="./supabase-config.js"></script>
-<script src="./assets/enemies/catalog.js?v=sputnik-life"></script>
-<script src="./assets/enemies/sprites.js?v=neon-360"></script>
+<script src="./assets/enemies/catalog.js?v=sputnik-hd"></script>
+<script src="./assets/enemies/character-motion.js"></script>
+<script src="./assets/enemies/sprites.js?v=sputnik-hd"></script>
 <script src="./assets/combat.js?v=muzzle-origin"></script>
 <script src="./assets/props.js?v=props-360"></script>
 <script src="./assets/levels/arena.js?v=sputnik"></script>
 <script src="./assets/music.js"></script>
-<script src="./assets/enemies/bestiary.js?v=neon-360"></script>
+<script src="./assets/enemies/bestiary.js?v=sputnik-hd"></script>
 <script src="./assets/effects.js?v=muzzle-origin"></script>
 <script src="./assets/scenery.js?v=ship-decks"></script>
 <script>
@@ -95,6 +128,7 @@ ctx.imageSmoothingEnabled=false;
 const mapSize=ferroShip.mapSize;
 const keys=new Set();
 const viewPlane=.69;
+let photo=null,viewCamera;
 let attempt,checkpoint;
 let n=0,grid,heights,foes,shots,items,p,weapon,heat,flash,hurt,exitPoint,lamps,ceiling,pickupNotice,pickupTime,boss,keyHeld,keyDropped;
 const owned=new Set([0]);
@@ -614,7 +648,8 @@ function update(dt){
   e.walk=see?d<9&&d>(melee?.57:kind==='sniper'?7:3):!arena&&pathLength>0&&pathLength<=10;
   if(e.wind>0||(e===boss&&!see))e.walk=false;
   e.run=e.walk&&see&&d>(e.run?3.1:4.0);
-  if(e.walk)e.travel=(e.travel+dt*(e.run?10:6.5))%12;
+  if(e.walk)e.travel=(e.travel+dt*(e.run?(e.type.hd?15:10):6.5))%12;
+  if(e.type.torsoMotion)ferroCharacterMotion.spring(e,dt);
   const islandDodge=island&&e.wind<=0&&e.reload>.35&&e.reload<1.45;
   if((arena||islandDodge)&&e.type.atlas&&e.run&&e.jump<=0&&time>=e.nextHop){
    e.jump=jumpDuration;
@@ -702,13 +737,14 @@ let settings={quality:'balanced',particles:true,effects:!matchMedia('(prefers-re
 try{settings={...settings,...JSON.parse(localStorage.getItem('ferro-options')||'{}')}}catch{}
 settings.fxVolume=Number.isFinite(settings.fxVolume)?Math.max(0,Math.min(1,settings.fxVolume)):1;
 let redraw=true;
-function applyQuality(){
- W=qualities[settings.quality]??qualities.balanced;H=W*9/16;
+function setRenderSize(width){
+ W=width;H=W*9/16;
  screen.width=W;screen.height=H;ctx.imageSmoothingEnabled=false;
  depth=new Float32Array(W*H);frameBuffer=ctx.createImageData(W,H);
  pixels=new Uint32Array(frameBuffer.data.buffer);horizon=H/2;focal=W*270/576;
  redraw=true;
 }
+function applyQuality(){setRenderSize(qualities[settings.quality]??qualities.balanced)}
 applyQuality();
 const palettes=ferroSurfaces.map(({wall,floor,ceiling,accent})=>[wall,floor,ceiling,accent]);
 
@@ -793,8 +829,8 @@ function world(ca,sa,plane,eye){
  const hull=ship&&ferroScenery.shipTiles(),space=ship&&ferroScenery.space();
  const materials=ferroShip.panelMaterials;
  const skyRows=space&&Int32Array.from({length:H},(_,y)=>
-  Math.floor((.50-Math.atan((horizon-y)/focal)/Math.PI)*space.height)*space.width);
- const haze=island?[113,151,131]:ferroScenery.haze(theme);
+  Math.max(0,Math.min(space.height-1,Math.floor((.50-Math.atan((horizon-y)/focal)/Math.PI)*space.height)))*space.width);
+ const haze=island?ferroSputnikSun.mist:ferroScenery.haze(theme);
  const timeRipple=settings.effects?Math.floor(time*13):0;
  depth.fill(Infinity);
  pixels.fill(shade(outdoors?ferroSurfaces[theme].sky:roofInk,outdoors?1:.24));
@@ -803,17 +839,17 @@ function world(ca,sa,plane,eye){
    const intensity=.40+Math.min(1,y/Math.max(1,horizon))*.65;
    pixels.fill(shade(ferroSurfaces[theme].sky,intensity),y*W,(y+1)*W);
   }
-  ferroSputnikArt.sky(pixels,W,H,horizon,plane,p.a);
-  ferroSputnikSun.drawSky(pixels,W,H,horizon,plane,focal,p.a,island.sun,blendLight);
+  ferroSputnikArt.sky(pixels,W,H,horizon,plane,viewCamera.a);
+  ferroSputnikSun.drawSky(pixels,W,H,horizon,plane,focal,viewCamera.a,island.sun,blendLight);
  }
  for(let x=0;x<W;x++){
   const u=(2*x/W-1)*plane,dx=ca-sa*u,dy=sa+ca*u;
-  const heading=space?(.40+(p.a+Math.atan(u)-skyHeading)/(Math.PI*2)):0;
+  const heading=space?(.40+(viewCamera.a+Math.atan(u)-skyHeading)/(Math.PI*2)):0;
   const skyColumn=space?Math.floor((heading-Math.floor(heading))*space.width):0;
-  let ix=Math.floor(p.x),iy=Math.floor(p.y),near=.004;
+  let ix=Math.floor(viewCamera.x),iy=Math.floor(viewCamera.y),near=.004;
   const ax=Math.abs(1/dx),ay=Math.abs(1/dy),sx=Math.sign(dx),sy=Math.sign(dy);
-  let tx=sx===0?Infinity:(sx<0?p.x-ix:ix+1-p.x)*ax;
-  let ty=sy===0?Infinity:(sy<0?p.y-iy:iy+1-p.y)*ay;
+  let tx=sx===0?Infinity:(sx<0?viewCamera.x-ix:ix+1-viewCamera.x)*ax;
+  let ty=sy===0?Infinity:(sy<0?viewCamera.y-iy:iy+1-viewCamera.y)*ay;
   for(let cell=0;cell<mapSize*2;cell++){
    const side=ty<tx,d=Math.max(.004,Math.min(tx,ty));
    const z=heights[iy][ix];
@@ -829,7 +865,7 @@ function world(ca,sa,plane,eye){
      const dist=(eye-planeZ)*focal/(y-horizon);
      const index=y*W+x;
      if(dist<=0||dist>=depth[index])continue;
-     const wx=p.x+dx*dist,wy=p.y+dy*dist;
+     const wx=viewCamera.x+dx*dist,wy=viewCamera.y+dy*dist;
      if(hull){
       const panel=isRoof?materials.ceiling:fromObject||materials.floor;
       const density=fromObject&&!isRoof?256:64;
@@ -851,8 +887,8 @@ function world(ca,sa,plane,eye){
       const density=material===0?37:54;
       const u=Math.floor(wx*density)&127,v=Math.floor(wy*density)&127;
       const sun=sunShadows?ferroSputnikSun.transmission(sunShadows,wx,wy):1;
-      const light=(.79+.26/(1+dist*.10))*sun;
-      pixels[index]=litWall(tropical[material][v*128+u],light,lightAt(wx,wy),Math.min(.58,dist*.026),haze);
+      pixels[index]=ferroSputnikSun.surface(tropical[material][v*128+u],sun,
+       .53+island.sun.elevation,dist,haze,lighting,lightAt(wx,wy),island.sun.elevation);
       depth[index]=dist;
       continue;
      }
@@ -869,7 +905,7 @@ function world(ca,sa,plane,eye){
      if(core&&!mark){
       // Mirror the crystal through the floor and break up the glint on the metal tiles.
       const reflectionDepth=dist*(eye+1.18)/eye;
-      const rx=p.x+dx*reflectionDepth-core[0],ry=p.y+dy*reflectionDepth-core[1];
+      const rx=viewCamera.x+dx*reflectionDepth-core[0],ry=viewCamera.y+dy*reflectionDepth-core[1];
       const spread=rx*rx+ry*ry;
       if(spread<.63){
        const ripple=((j*13+k*7+timeRipple)&15)*.025+.35;
@@ -889,7 +925,7 @@ function world(ca,sa,plane,eye){
    const faceBit=side?(sy>0?4:8):(sx>0?1:2);
    const viewport=solid&&(ship?.windows[iy]?.[ix]&faceBit);
    if(solid||next!==z){
-    const edge=side?p.x+dx*d:p.y+dy*d;
+    const edge=side?viewCamera.x+dx*d:viewCamera.y+dy*d;
     const stripe=Math.floor((edge-Math.floor(edge))*64);
     const sector=arena?ferroArena.sectors[ferroArena.roomAt(ix,iy)]:null;
     const material=sector?.material??theme;
@@ -907,9 +943,10 @@ function world(ca,sa,plane,eye){
      solid?wallTextures[sector?.wall??material]?.[style]:null;
     const column=Math.floor((edge-Math.floor(edge))*wallTileSize);
     const illumination=1.12/(1+d*.106)*(side?.78:1);
-    const faceX=p.x+dx*(d-.025),faceY=p.y+dy*(d-.025);
+    const faceX=viewCamera.x+dx*(d-.025),faceY=viewCamera.y+dy*(d-.025);
     const faceLight=lightAt(faceX,faceY);
     const faceSun=sunShadows?ferroSputnikSun.transmission(sunShadows,faceX,faceY):1;
+    const faceNormal=island?(side?-sy*island.sun.y:-sx*island.sun.x):0;
     const start=Math.max(0,Math.ceil(horizon+(eye-high)*focal/d));
     const end=Math.min(H,Math.ceil(horizon+(eye-low)*focal/d));
     for(let y=start;y<end;y++){
@@ -927,7 +964,8 @@ function world(ca,sa,plane,eye){
      if(tropical){
       const row=(Math.floor(altitude*81)+iy*11)&127;
       const paint=tropical[beach?0:3][row*128+u];
-      pixels[index]=litWall(paint,(.73+illumination*.20)*faceSun,faceLight,fog,haze);
+      pixels[index]=ferroSputnikSun.surface(paint,faceSun,faceNormal,
+       d,haze,lighting,faceLight,island.sun.elevation);
       depth[index]=d;
       continue;
      }
@@ -979,8 +1017,8 @@ function drawAtmosphere(ca,sa,plane,eye,core){
   const cycle=(i*.6180339+time*(.13+i%5*.024))%1;
   const drift=(i*2.39996)+cycle*1.4;
   const radius=(.18+cycle)*(.65+(i%9)*.155);
-  const dx=anchor[0]+Math.cos(drift)*radius-p.x;
-  const dy=anchor[1]+Math.sin(drift)*radius-p.y;
+  const dx=anchor[0]+Math.cos(drift)*radius-viewCamera.x;
+  const dy=anchor[1]+Math.sin(drift)*radius-viewCamera.y;
   const z=dx*ca+dy*sa;
   if(z<.24)continue;
   const x=Math.floor(W/2+W/2*(-dx*sa+dy*ca)/(z*plane));
@@ -1043,7 +1081,7 @@ function drawContactShadows(ca,sa,plane,eye){
  if(settings.quality==='fluid')return;
  ctx.fillStyle='#040815';
  function shadow(object,width,opacity,lift=0){
-  const dx=object.x-p.x,dy=object.y-p.y,z=dx*ca+dy*sa;
+  const dx=object.x-viewCamera.x,dy=object.y-viewCamera.y,z=dx*ca+dy*sa;
   if(z<.32||z>11)return;
   const x=W/2+W/2*(-dx*sa+dy*ca)/(z*plane);
   const y=horizon+(eye-floor(object.x,object.y))*focal/z;
@@ -1062,7 +1100,7 @@ function drawWreckSmoke(ca,sa,plane,eye){
  ctx.fillStyle='#7d8775';
  for(let i=0;i<21;i++){
   const age=(time*.34+i/21)%1;
-  const dx=x-p.x+age*.64,dy=y-p.y+age*.42+Math.sin(i*4.2+time)*age*.21;
+  const dx=x-viewCamera.x+age*.64,dy=y-viewCamera.y+age*.42+Math.sin(i*4.2+time)*age*.21;
   const z=dx*ca+dy*sa;
   if(z<.55||z>25)continue;
   const sx=Math.floor(W/2+W/2*(-dx*sa+dy*ca)/(z*plane));
@@ -1113,8 +1151,12 @@ function drawWeapon(){
  ctx.restore();
 }
 function draw(){
- const ca=Math.cos(p.a),sa=Math.sin(p.a),plane=viewPlane;
- const eye=cameraEye();
+ viewCamera=photo??p;
+ const zoom=photo?.zoom??1;
+ const ca=Math.cos(viewCamera.a),sa=Math.sin(viewCamera.a),plane=viewPlane/zoom;
+ focal=W*270/576*zoom;
+ horizon=H/2+Math.tan(photo?.pitch??0)*focal;
+ const eye=photo?.z??cameraEye();
  const core=boss.hp>0?boss:null;
  updateLights(core);
  if(island&&sunShadows)ferroSputnikSun.update(sunShadows,island,wildlife,foes,time,hopHeight);
@@ -1124,13 +1166,13 @@ function draw(){
   x,y,art:fixtureArt[arena?arenaMaterials[Math.floor(i/4)]:levels[n].theme],size:.50,altitude:ceiling-.51,fixture:true
  }));
  if(island)for(const plant of island.plants){
-  const dx=plant.x-p.x,dy=plant.y-p.y;
+  const dx=plant.x-viewCamera.x,dy=plant.y-viewCamera.y;
   if(dx*dx+dy*dy>27*27||dx*ca+dy*sa<.14)continue;
   const frame=ferroSputnikArt.frame(plant,Math.atan2(-dy,-dx));
   if(frame)scene.push({...plant,...frame,altitude:0,fixture:true});
  }
  if(island)for(const animal of wildlife){
-  const dx=animal.x-p.x,dy=animal.y-p.y;
+  const dx=animal.x-viewCamera.x,dy=animal.y-viewCamera.y;
   if(dx*dx+dy*dy>25*25||dx*ca+dy*sa<.14)continue;
   const frame=ferroSputnikArt.animalFrame(animal,Math.atan2(-dy,-dx));
   if(frame)scene.push({...animal,...frame,fixture:true});
@@ -1144,10 +1186,14 @@ function draw(){
   scene.push({x,y,art,altitude:.30,size:1.85,fixture:true});
  });
  for(const e of foes){
-  const pose=e.hp<=0?'death':e.hit>0?'hit':e.jump>0?'jump':e.wind>0?'shoot':e.run?'run':e.walk?'walk':'idle';
-  const elapsedFrame=pose==='death'?e.dead*12:pose==='shoot'?(1-e.wind/attackDuration)*12:pose==='hit'?(1-e.hit/hitDuration)*12:pose==='jump'?(1-e.jump/jumpDuration)*12:(pose==='idle'?time*5+e.phase*12:e.travel)%12;
+  const attack=e.wind/attackDuration;
+  const attackPose=e.type.hd?(attack>.72?'aim':attack<.20?'recover':'shoot'):'shoot';
+  const pose=e.hp<=0?'death':e.hit>0?'hit':e.jump>0?'jump':e.wind>0?attackPose:e.run?'run':e.walk?'walk':'idle';
+  const elapsedFrame=pose==='death'?e.dead*12:pose==='shoot'?(1-attack)*12:pose==='aim'?(1-attack)*42:
+   pose==='recover'?(1-attack/.20)*12:pose==='hit'?(1-e.hit/hitDuration)*12:
+   pose==='jump'?(1-e.jump/jumpDuration)*12:(pose==='idle'?time*5+e.phase*12:e.travel)%12;
   const frame=Math.max(0,Math.min(11,Math.floor(elapsedFrame)));
-  const bearing=Math.atan2(p.y-e.y,p.x-e.x);
+  const bearing=Math.atan2(viewCamera.y-e.y,viewCamera.x-e.x);
   e.view=ferroEnemySprites.viewFor(e.facing,bearing,e.view);
   scene.push({x:e.x,y:e.y,foe:e,pose,frame,size:1+(e.type.size-1)*(e.type.kind==='boss'?.65:.5),
    offset:e.hp>0?hopHeight(e):0,hit:e.hit>0});
@@ -1155,7 +1201,7 @@ function draw(){
  }
  for(const drop of blood)scene.push({x:drop.x,y:drop.y,altitude:drop.altitude,size:drop.size,color:drop.color,blood:true});
  for(const prop of props)if(prop.hp>0){
-  const bearing=Math.atan2(p.y-prop.y,p.x-prop.x);
+  const bearing=Math.atan2(viewCamera.y-prop.y,viewCamera.x-prop.x);
   prop.view=ferroEnemySprites.viewFor(prop.yaw,bearing,prop.view);
   scene.push({...prop,...ferroProps.frame(prop.kind,prop.view),altitude:prop.z,size:prop.height,physical:true});
  }
@@ -1176,7 +1222,7 @@ function draw(){
   }
   scene.push({x,y,size:kind==='exit'?.65:.21,color:kind==='hp'?'#8cf0a2':kind==='ammo'?'#ffce75':kind==='secret'?'#bf91ff':kind==='checkpoint'?'#4be9ff':keyHeld?'#69fce0':'#bd5453',offset:kind==='exit'?.19:.09});
  }
- for(const o of scene){const dx=o.x-p.x,dy=o.y-p.y;o.z=dx*ca+dy*sa;o.l=-dx*sa+dy*ca}
+ for(const o of scene){const dx=o.x-viewCamera.x,dy=o.y-viewCamera.y;o.z=dx*ca+dy*sa;o.l=-dx*sa+dy*ca}
  scene.sort((a,b)=>b.z-a.z);
  for(const o of scene){
   if(o.z<.14)continue;
@@ -1189,7 +1235,13 @@ function draw(){
   const hasArt=o.art||o.foe;
   let visible=false;
   if(hasArt){ctx.save();ctx.beginPath();}
-  if(hasArt&&!o.fixture){
+  if(hasArt&&island&&settings.quality!=='fluid'){
+   const light=lightAt(o.x,o.y);
+   const illumination=(lighting[light]+lighting[light+1]+lighting[light+2])/410;
+   const shadow=sunShadows?ferroSputnikSun.transmission(sunShadows,o.x,o.y):1;
+   const {brightness,saturation,fog}=ferroSputnikSun.spriteLight(island.sun,o.x,o.y,viewCamera,shadow,illumination);
+   ctx.filter='brightness('+(o.hit?1.27:brightness+fog*.15).toFixed(2)+') saturate('+(saturation-fog*.52).toFixed(2)+')';
+  }else if(hasArt&&!o.fixture){
    const li=lightAt(o.x,o.y);
    const intensity=(lighting[li]+lighting[li+1]+lighting[li+2])/410;
    const boost=o.physical?.92+Math.min(.26,intensity):o.hit?1.32:
@@ -1218,7 +1270,7 @@ function draw(){
   }
   if(hasArt){
    if(visible){
-    const frame=o.foe?ferroEnemySprites.get(o.foe.type,o.foe.view,o.pose,o.frame):o.art;
+    const frame=o.foe?ferroEnemySprites.get(o.foe.type,o.foe.view,o.pose,o.frame,o.foe.torso):o.art;
     if(frame){
      ctx.clip();
      const size=o.frameSize??frame.width;
@@ -1232,7 +1284,7 @@ function draw(){
  }
  if(settings.effects||arena&&settings.particles){
   const project=(x,y,altitude)=>{
-   const dx=x-p.x,dy=y-p.y,z=dx*ca+dy*sa;
+   const dx=x-viewCamera.x,dy=y-viewCamera.y,z=dx*ca+dy*sa;
    if(z<.22)return null;
    const sx=Math.floor(W/2+W/2*(-dx*sa+dy*ca)/(z*plane));
    const sy=Math.floor(horizon+(eye-altitude)*focal/z);
@@ -1240,7 +1292,7 @@ function draw(){
   };
   const detail=settings.quality!=='fluid';
   if(settings.effects){
-   const nearShots=arena?shots.filter(shot=>Math.hypot(shot.x-p.x,shot.y-p.y)<13):shots;
+   const nearShots=arena?shots.filter(shot=>Math.hypot(shot.x-viewCamera.x,shot.y-viewCamera.y)<13):shots;
    ferroEffects.draw(ctx,project,nearShots,playerBolts,detail);
   }
   if(arena)ferroEffects.arena(ctx,project,arenaCores,settings.effects?arenaPulses:[2,2,2,2],time,
@@ -1250,6 +1302,7 @@ function draw(){
   drawWreckSmoke(ca,sa,plane,eye);
  }
  drawAtmosphere(ca,sa,plane,eye,core);
+ if(photo)return;
  ctx.save();
  ctx.scale(W/480,H/270);
  drawWeapon();
@@ -1631,12 +1684,77 @@ function pause(){
  $('intro').textContent='WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–7 per canviar d’arma i Q per saltar.';
  $('start').textContent='Continua';$('menu').hidden=false;
 }
+let photoDrag=null;
+const photoTouch=new Map();
+const photoPanel=$('photoPanel');
+function openPhoto(){
+ if(state!=='playing')return;
+ photo=ferroPhoto.start(p,cameraEye());
+ state='photo';keys.clear();resetTouch();
+ document.body.classList.remove('playing');
+ document.body.classList.add('photographing');
+ document.exitPointerLock?.();
+ $('photoZoom').value=1;
+ $('photoStatus').textContent='Arrossega per mirar · WASD per moure’t · Q/E per pujar i baixar';
+ photoPanel.hidden=false;redraw=true;
+}
+function closePhoto(event){
+ if(!photo)return;
+ if(photoDrag&&screen.hasPointerCapture(photoDrag.id))screen.releasePointerCapture(photoDrag.id);
+ photo=null;photoDrag=null;photoTouch.clear();keys.clear();
+ photoPanel.hidden=true;
+ document.body.classList.remove('photographing');
+ applyQuality();enterPlay(event);
+}
+function updatePhoto(dt){
+ const active=key=>Number(keys.has(key)||[...photoTouch.values()].includes(key));
+ const forward=active('w')-active('s'),strafe=active('d')-active('a'),lift=active('q')-active('e');
+ const yaw=active('arrowright')-active('arrowleft'),pitch=active('arrowup')-active('arrowdown');
+ if(yaw||pitch)ferroPhoto.aim(photo,yaw*dt*1.5,pitch*dt);
+ if(forward||strafe||lift)ferroPhoto.moveCamera(photo,forward,strafe,lift,dt,move,floor,ceiling,!!island);
+ if(forward||strafe||lift||yaw||pitch)redraw=true;
+}
+$('photoButton').onclick=openPhoto;
+$('photoExit').onclick=closePhoto;
+$('photoZoom').oninput=e=>{if(photo){photo.zoom=Number(e.target.value);redraw=true}};
+$('photoSave').onclick=()=>{
+ if(!photo)return;
+ const width=W;let png;
+ try{
+  setRenderSize(1920);draw();png=screen.toDataURL('image/png');
+ }catch{
+  $('photoStatus').textContent='No s’ha pogut desar la imatge.';
+  return;
+ }finally{setRenderSize(width)}
+ const link=document.createElement('a');
+ link.href=png;link.download='ferro-feral-'+Date.now()+'.png';link.click();
+ $('photoStatus').textContent='Captura PNG de 1920 × 1080';
+};
+for(const button of ($('photoMove').querySelectorAll?.('button')??[])){
+ button.addEventListener('pointerdown',event=>{
+  if(!photo)return;
+  button.setPointerCapture(event.pointerId);
+  photoTouch.set(event.pointerId,button.dataset.photoKey);
+ });
+ for(const type of ['pointerup','pointercancel','lostpointercapture'])
+  button.addEventListener(type,event=>photoTouch.delete(event.pointerId));
+}
 let wasLocked=false;
 document.addEventListener('pointerlockchange',()=>{const locked=document.pointerLockElement===screen;if(wasLocked&&!locked)pause();wasLocked=locked});
-window.addEventListener('blur',pause);
+window.addEventListener('blur',()=>{if(photo){keys.clear();photoTouch.clear();photoDrag=null}else pause()});
 window.addEventListener('keydown',e=>{
+ const k=e.key.toLowerCase();
+ if(photo){
+  if(e.target===$('photoZoom')&&k.startsWith('arrow'))return;
+  if(k==='escape'||(k==='p'&&!e.repeat)){closePhoto(e);return}
+  if(['w','a','s','d','q','e','arrowup','arrowdown','arrowleft','arrowright'].includes(k)){
+   e.preventDefault();keys.add(k);
+  }
+  return;
+ }
  if(state!=='playing')return;
- const k=e.key.toLowerCase();keys.add(k);
+ if(k==='p'&&!e.repeat){openPhoto();return}
+ keys.add(k);
  if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k))e.preventDefault();
  if(!chargedShot&&/^[1-7]$/.test(k)&&owned.has(Number(k)-1))weapon=Number(k)-1;
  if(k==='q'&&!e.repeat)jumpPlayer();
@@ -1681,18 +1799,27 @@ jumpButton.addEventListener('pointerdown',e=>{
 });
 jumpButton.addEventListener('click',e=>{if(e.detail===0)jumpPlayer()});
 screen.addEventListener('pointerdown',e=>{
+ if(photo){
+  if(!photoDrag){photoDrag={id:e.pointerId,x:e.clientX,y:e.clientY};screen.setPointerCapture(e.pointerId)}
+  return;
+ }
  if(state!=='playing')return;
  if(e.pointerType==='mouse'){fire();return}
  if(lookPointer!==null)return;
  lookPointer=e.pointerId;lookX=e.clientX;screen.setPointerCapture(e.pointerId);
 });
 screen.addEventListener('pointermove',e=>{
+ if(photo&&photoDrag?.id===e.pointerId){
+  ferroPhoto.aim(photo,(e.clientX-photoDrag.x)*.006,(photoDrag.y-e.clientY)*.005);
+  photoDrag.x=e.clientX;photoDrag.y=e.clientY;redraw=true;
+  return;
+ }
  if(state==='playing'&&e.pointerId===lookPointer){p.a+=(e.clientX-lookX)*.012;lookX=e.clientX}
 });
 for(const event of ['pointerup','pointercancel','lostpointercapture']){
  joystick.addEventListener(event,e=>{if(e.pointerId===movePointer){movePointer=null;setStick(0,0,0,0)}});
  fireButton.addEventListener(event,e=>{if(e.pointerId===firePointer)firePointer=null});
- screen.addEventListener(event,e=>{if(e.pointerId===lookPointer)lookPointer=null});
+ screen.addEventListener(event,e=>{if(e.pointerId===lookPointer)lookPointer=null;if(e.pointerId===photoDrag?.id)photoDrag=null});
 }
 document.addEventListener('mousemove',e=>{if(state==='playing'&&document.pointerLockElement===screen)p.a+=e.movementX*.003});
 prepareWeapon();
@@ -1721,7 +1848,8 @@ function readGamepad(){
   if(pressed&4){pause();return}
   if(pressed&1)jumpPlayer();
   if(pressed&2)$('swap').onclick();
- }else if((pressed&4)&&$('menuPanel').hidden){
+ }else if(photo){if(pressed&4)closePhoto({pointerType:'gamepad'})}
+ else if((pressed&4)&&$('menuPanel').hidden){
   $('start').onclick({pointerType:'gamepad'});
  }
 }
@@ -1729,6 +1857,7 @@ function frame(now){
  const dt=Math.min(.05,(now-last)/1000);last=now;
  readGamepad();
  if(state==='playing'){time+=dt;update(dt);if(state==='playing')score(dt)}
+ if(photo)updatePhoto(dt);
  if(state==='playing'||redraw){draw();redraw=false}
  requestAnimationFrame(frame);
 }

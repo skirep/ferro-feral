@@ -9,7 +9,14 @@ const ferroBestiary=(()=>{
  const container=document.getElementById('bestiaryViews');
  const angles=['Front','Front · 45°','Perfil · 90°','Darrere · 135°','Esquena','Darrere · 225°','Perfil · 270°','Front · 315°'];
  const rooms=['nord-oest','nord-est','sud-est','sud-oest'];
- const frameTime={walk:1000/6.5,jump:980/12,shoot:820/12};
+ const frameTime={walk:1000/6.5,jump:980/12,shoot:820/12,idle:180,run:1000/15,aim:55,recover:50,hit:33,death:82};
+ const extra={idle:'Espera',run:'Córrer',aim:'Apuntar',recover:'Recuperar la postura',hit:'Rebre un impacte',death:'Caure'};
+ const extraOptions=Object.entries(extra).map(([value,textContent])=>{
+  const option=document.createElement('option');
+  option.value=value;option.textContent=textContent;option.hidden=option.disabled=true;
+  pose.append(option);
+  return option;
+ });
  const previews=angles.map(label=>{
   const figure=document.createElement('figure');
   const canvas=document.createElement('canvas');
@@ -42,9 +49,10 @@ const ferroBestiary=(()=>{
   const frame=Number(slider.value)-1;
   counter.value=slider.value+'/12';
   previews.forEach((ctx,view)=>{
-   const art=ferroEnemySprites.get(type,view,pose.value,frame);
+   const flex=type.torsoMotion&&pose.value==='run'?Math.sin(frame*Math.PI/3-.6)*.9:0;
+   const art=ferroEnemySprites.get(type,view,pose.value,frame,flex);
    ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
-   if(art)ctx.drawImage(art,0,0);
+   if(art)ctx.drawImage(art,0,0,ctx.canvas.width,ctx.canvas.height);
   });
  }
 
@@ -90,6 +98,8 @@ const ferroBestiary=(()=>{
   const revision=++opened;
   const type=roster[Number(enemy.value)];
   stop();
+  for(const option of extraOptions)option.hidden=option.disabled=!type.hd;
+  if(!type.hd&&pose.value in extra)pose.value='walk';
   slider.disabled=play.disabled=true;
   placement.textContent='Carregant els atles…';
   for(const ctx of previews)ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);

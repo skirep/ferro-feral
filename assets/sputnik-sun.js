@@ -1,22 +1,23 @@
 const ferroSputnikSun=(()=>{
  const resolution=12;
  const faunaShade=[.29,.24,.30,.12];
- const disk=[255,247,202], glow=[255,204,124];
+ const disk=[255,252,225], glow=[255,205,136];
+ const mist=[139,175,155];
 
  function drawSky(buffer,width,height,horizon,plane,focal,heading,sun,blend){
   const angle=sun.azimuth-heading,z=Math.cos(angle);
   if(z<=0)return;
   const x=width/2*(1+Math.sin(angle)/(plane*z));
   const y=horizon-focal*Math.tan(sun.elevation)/z;
-  const radius=Math.max(3,width*.017/z),halo=radius*5.2;
+  const radius=Math.max(3,width*.017/z),halo=radius*7.2;
   if(x+halo<0||x-halo>width||y+halo<0||y-halo>height)return;
   for(let py=Math.max(0,Math.floor(y-halo));py<Math.min(height,Math.ceil(y+halo));py++){
    for(let px=Math.max(0,Math.floor(x-halo));px<Math.min(width,Math.ceil(x+halo));px++){
     const d=Math.hypot(px+.5-x,py+.5-y)/radius;
-    if(d>5.2)continue;
+    if(d>7.2)continue;
     const i=py*width+px;
     buffer[i]=d<1.1?blend(buffer[i],disk,Math.min(1,(1.1-d)*5)):
-     blend(buffer[i],glow,(1-d/5.2)**2*.47);
+     blend(buffer[i],glow,(1-d/7.2)**2*.55);
    }
   }
  }
@@ -84,5 +85,27 @@ const ferroSputnikSun=(()=>{
   return 1-Math.max(field.staticShade[i],field.dynamic[i])*.00212;
  }
 
- return {drawSky,bake,update,transmission};
+ function surface(texel,transmission,normal,distance,haze,lights,index,elevation){
+  const sun=Math.max(0,transmission-.46)*(1.0+normal*.46);
+  const warm=1-Math.min(1,elevation*2);
+  const fog=Math.min(.68,1-Math.exp(-distance*.032));
+  const remain=1-fog, daylight=.60+sun;
+  const r=Math.min(255,((texel&255)*(daylight+sun*warm*.16)+lights[index])*remain+haze[0]*fog)|0;
+  const g=Math.min(255,((texel>>>8&255)*(daylight+sun*.022)+lights[index+1])*remain+haze[1]*fog)|0;
+  const b=Math.min(255,((texel>>>16&255)*(.70+sun*(.72-warm*.12))+lights[index+2])*remain+haze[2]*fog)|0;
+  return (255<<24)|(b<<16)|(g<<8)|r;
+ }
+
+ function spriteLight(sun,x,y,camera,transmission,intensity){
+  const dx=camera.x-x,dy=camera.y-y;
+  const distance=Math.hypot(dx,dy);
+  const facing=(dx*sun.x+dy*sun.y)/Math.max(.001,distance);
+  return {
+   brightness:.84+Math.max(0,facing)*.26*transmission+intensity*.16,
+   saturation:1.06+Math.max(0,facing)*.13-transmission*.02,
+   fog:Math.min(.76,1-Math.exp(-distance*.025))
+  };
+ }
+
+ return {drawSky,bake,update,transmission,surface,spriteLight,mist};
 })();

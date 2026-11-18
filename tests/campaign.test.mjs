@@ -472,3 +472,46 @@ test('island wildlife includes roaming land species and a flying flock', () => {
     }
   }
 });
+
+test('photo mode tracks a detached camera and clamps pitch and altitude', () => {
+  const photo = runInNewContext(source + '\nferroPhoto');
+  const player = {x:10,y:12,z:.25,a:Math.PI/2};
+  const camera = photo.start(player,player.z+.50);
+  const move = (view,dx,dy) => { view.x+=dx; view.y+=dy; };
+  photo.moveCamera(camera,1,0,1,.5,move,()=>.25,1.5,false);
+  assert.equal(camera.x,10);
+  assert.equal(camera.y,13.4);
+  assert.equal(camera.z,1.34);
+  assert.equal(player.y,12);
+  assert.equal(player.z,.25);
+  photo.aim(camera,.5,5);
+  assert.equal(camera.pitch,.52);
+  assert.equal(camera.a,Math.PI/2+.5);
+  photo.moveCamera(camera,0,0,-1,1,move,()=>.25,1.5,false);
+  assert.equal(camera.z,.43);
+});
+
+test('the running spring responds to consecutive strides and settles at rest', () => {
+  const motion = runInNewContext(read('../assets/enemies/character-motion.js') + '\nferroCharacterMotion');
+  const runner = {run:true,travel:0,jump:0,wind:0};
+  let high = 0, low = 0;
+  for(let i=0;i<120;i++){
+    runner.travel=i*.23;
+    motion.spring(runner,1/60);
+    high=Math.max(high,runner.torso);low=Math.min(low,runner.torso);
+  }
+  assert.ok(high>.30&&low<-.30);
+  runner.run=false;
+  for(let i=0;i<100;i++)motion.spring(runner,1/30);
+  assert.ok(Math.abs(runner.torso)<.001);
+  assert.equal(motion.cell,224);
+  assert.equal(new Set(motion.poses).size,9);
+});
+
+test('island daylight responds to both surface orientation and shade', () => {
+  const sun = runInNewContext(source + '\nferroSputnikSun');
+  const texel=127|(127<<8)|(127<<16);
+  const sample=(shade,normal)=>sun.surface(texel,shade,normal,1,sun.mist,[0,0,0],0,.2)&255;
+  assert.ok(sample(1,1)>sample(1,-1));
+  assert.ok(sample(1,-1)>sample(.50,-1));
+});

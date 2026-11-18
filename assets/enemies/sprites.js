@@ -118,8 +118,10 @@ const ferroEnemySprites = (() => {
   if(!type.atlas||entry.directional.has(slot))return;
   if(entry.pending.has(slot))return entry.pending.get(slot);
   const task=image('360/'+type.atlas+'.webp').then(sheet=>{
-   const cell=sheet.naturalWidth/directionalFrames;
-   if(![80,96].includes(cell)||sheet.naturalHeight!==cell*views*motionPoses.length){
+   const cell=sheet.naturalWidth/(type.hd?views:directionalFrames);
+   const valid=type.hd?cell===ferroCharacterMotion.cell&&sheet.naturalHeight===cell*4:
+    [80,96].includes(cell)&&sheet.naturalHeight===cell*views*motionPoses.length;
+   if(!valid){
     throw new Error('Invalid directional enemy atlas: '+type.atlas);
    }
    entry.directional.set(slot,{sheet,cell});
@@ -251,6 +253,11 @@ const ferroEnemySprites = (() => {
   return image;
  }
 
+ function remember(key,art){
+  frames.delete(key);frames.set(key,art);
+  if(frames.size>192)frames.delete(frames.keys().next().value);
+ }
+
  let keepAllWorlds=false;
  const loaded=new Map();
  function trimWorlds(){
@@ -265,12 +272,21 @@ const ferroEnemySprites = (() => {
    return !!entry&&rosterFor(theme,slots).every(type=>type.atlas?entry.directional.has(type.slot):!!entry.geometry[type.slot]);
   },
   clear(){frames.clear()},
-  get(type,view,pose,frame){
+  get(type,view,pose,frame,torso=0){
    const entry=loaded.get(type.theme);
    if(!entry)return null;
    const motion=pose==='run'?'walk':pose;
    const directional=entry.directional.get(type.slot);
    if(type.atlas&&!directional)return null;
+   if(type.hd){
+    const flex=Math.round(torso*3)/3;
+    const key=type.id+':'+view+':'+pose+':'+frame+':'+flex;
+    const cached=frames.get(key);
+    const art=cached??canvas(directional.cell);
+    if(!cached)ferroCharacterMotion.render(art.getContext('2d'),directional.sheet,view,pose,frame,flex);
+    remember(key,art);
+    return art;
+   }
    const sheet=entry.sheets[motionPoses.indexOf(motion)];
    const cachedFrame=directional?(pose==='idle'?0:frame):sheet?Math.floor(frame/2):frame;
    const key=type.id+':'+view+':'+(sheet||directional?motion:pose)+':'+cachedFrame;
@@ -282,9 +298,7 @@ const ferroEnemySprites = (() => {
     else if(sheet)image=motionFrame(sheet,type,view,cachedFrame,geometry);
     else image=draw(entry.sprites[type.slot],type,view,pose,frame,geometry);
    }
-   frames.delete(key);
-   frames.set(key,image);
-   if(frames.size>192)frames.delete(frames.keys().next().value);
+   remember(key,image);
    return image;
   }
  };
