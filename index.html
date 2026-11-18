@@ -75,7 +75,7 @@
 <script src="./assets/enemies/catalog.js?v=neon-360"></script>
 <script src="./assets/enemies/sprites.js?v=neon-360"></script>
 <script src="./assets/combat.js?v=compact-viewmodels"></script>
-<script src="./assets/props.js?v=textured-props"></script>
+<script src="./assets/props.js?v=props-360"></script>
 <script src="./assets/levels/arena.js?v=arena-surge"></script>
 <script src="./assets/music.js"></script>
 <script src="./assets/enemies/bestiary.js?v=neon-360"></script>
@@ -98,6 +98,7 @@ let state='menu',time=0,elapsed=0,roomDistance,arena=false;
 let arenaCores=[],skyHeading=0;
 let arenaRoom,arenaAlive,arenaPulses,arenaDefeats;
 let props=[],playerBolts=[],blasts=[],chargedShot=null;
+const propFragments=[];
 let weaponShown,weaponSince=0,flashWeapon=0;
 function levelEnemySlots(index){
  const {roster,boss}=levels[index];
@@ -171,6 +172,7 @@ function level(index){
  p={x:sx+.5,y:sy+.5,a:skyHeading,z:heights[sy][sx],groundZ:heights[sy][sx],jumpTime:0,hp:100,ammo:20};
  shots=[];blood.length=0;ferroEffects.clear();heat=flash=hurt=0;
  props=[];playerBolts=[];blasts=[];chargedShot=null;
+ propFragments.length=0;
  const [ex,ey]=rooms[chapter.route.at(-1)];
  exitPoint=[ex+2.5,ey+.5];
  items=[[...exitPoint,'exit'],[secretX+5*secretSide+.5,secretY+2.5,'secret']];
@@ -404,9 +406,12 @@ function impactProp(prop,power,dx,dy,color){
  if(prop.hp<=0)return;
  ferroProps.push(prop,dx,dy,Math.min(18,2+power*.095),Math.min(5,power*.05));
  prop.hp-=power;
- if(prop.hp<=0&&prop.kind==='barrel')blasts.push({
-  x:prop.x,y:prop.y,altitude:prop.z+.35,power:107,radius:2.35,color:'#ff8150'
- });
+ if(prop.hp<=0){
+  ferroProps.shatter(propFragments,prop,dx,dy);
+  if(prop.kind==='barrel')blasts.push({
+   x:prop.x,y:prop.y,altitude:prop.z+.35,power:107,radius:2.35,color:'#ff8150'
+  });
+ }
  if(settings.effects&&!(prop.hp<=0&&prop.kind==='barrel')){
   ferroEffects.impact(prop.x,prop.y,prop.z+.34,color,prop.hp<=0);
  }
@@ -550,7 +555,10 @@ function update(dt){
  p.groundZ+=(ground-p.groundZ)*Math.min(1,dt*13);
  p.jumpTime=Math.max(0,p.jumpTime-dt);
  p.z=Math.min(ceiling-.62,Math.max(ground,p.groundZ+jumpOffset(p.jumpTime)));
- if(arena)ferroProps.tick(props,wall,p,previous,dt);
+ if(arena){
+  ferroProps.tick(props,wall,p,previous,dt);
+  ferroProps.tickFragments(propFragments,wall,dt);
+ }
  if(forward||strafe)elapsed+=dt*10;
  heat-=dt;flash-=dt;hurt-=dt;if(keys.has(' ')||firePointer!==null||padFire)fire();
  updateNavigation();
@@ -1036,8 +1044,14 @@ function draw(){
  }
  for(const drop of blood)scene.push({x:drop.x,y:drop.y,altitude:drop.altitude,size:drop.size,color:drop.color,blood:true});
  for(const prop of props)if(prop.hp>0){
-  scene.push({...prop,art:ferroProps.art(prop.kind),altitude:prop.z,size:prop.height,physical:true});
+  const bearing=Math.atan2(p.y-prop.y,p.x-prop.x);
+  prop.view=ferroEnemySprites.viewFor(prop.yaw,bearing,prop.view);
+  scene.push({...prop,...ferroProps.frame(prop.kind,prop.view),altitude:prop.z,size:prop.height,physical:true});
  }
+ for(const fragment of propFragments)scene.push({
+  x:fragment.x,y:fragment.y,altitude:fragment.z,size:fragment.size,color:fragment.color,
+  fragment:true,lean:Math.sin(fragment.yaw)*.94
+ });
  if(!settings.effects)for(const s of shots)scene.push({...s,size:.14,offset:.50});
  if(!settings.effects)for(const bolt of playerBolts){
   scene.push({x:bolt.x,y:bolt.y,altitude:bolt.altitude,size:bolt.gun.projectile.charge?.25:.13,color:bolt.gun.color});
@@ -1054,7 +1068,7 @@ function draw(){
  scene.sort((a,b)=>b.z-a.z);
  for(const o of scene){
   if(o.z<.14)continue;
-  const h=Math.max(o.blood?2:0,Math.floor(focal/o.z*o.size)),w=h;
+  const h=Math.max(o.blood||o.fragment?2:0,Math.floor(focal/o.z*o.size)),w=h;
   const left=Math.floor(W/2+W/2*o.l/(o.z*plane)-w/2);
   const altitude=o.altitude??floor(o.x,o.y)+(o.offset||0);
   const anchor=o.foe?ferroEnemySprites.anchor:1;
@@ -1084,7 +1098,8 @@ function draw(){
     }else{
      const radius=Math.abs(x-left-w/2)/(w/2);
      const inset=w*.23*radius;
-     const from=Math.max(begin,top+inset),to=Math.min(y,top+w-inset);
+     const tilt=(o.lean||0)*(x-left-w/2);
+     const from=Math.max(begin,top+inset+tilt),to=Math.min(y,top+w-inset+tilt);
      if(from<to){ctx.fillStyle=o.color;ctx.fillRect(x,from,1,to-from)}
     }
    }
@@ -1389,6 +1404,7 @@ async function startArena(e){
  arenaPulses=[2,2,2,2];arenaPulses[arenaRoom]=0;
  arenaDefeats=[0,0,0,0];
  props=ferroProps.spawn(map.cores);playerBolts=[];blasts=[];chargedShot=null;
+ propFragments.length=0;
  boss={x,y,hp:0};
  shots=[];blood.length=0;ferroEffects.clear();heat=flash=hurt=0;
  keyHeld=keyDropped=false;

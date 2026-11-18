@@ -237,6 +237,7 @@ test('arena props push, rebound off walls and can be hit at firing height', () =
   const open = () => false;
   const player = {x:crate.x-crate.radius-.16,y:crate.y,z:0};
   const original = crate.x;
+  const initialYaw = crate.yaw;
   props.tick([crate],open,player,[player.x-.03,player.y],.02);
   assert.ok(crate.x>original);
   props.push(crate,1,0,9,3);
@@ -244,10 +245,31 @@ test('arena props push, rebound off walls and can be hit at firing height', () =
   props.tick([crate],wall,{x:0,y:0,z:0},[0,0],.02);
   assert.ok(crate.vx<0);
   assert.ok(crate.z>0);
+  assert.notEqual(crate.yaw,initialYaw);
   for(let i=0;i<45;i++)props.tick([crate],open,{x:0,y:0,z:0},[0,0],.025);
   assert.equal(crate.z,0);
   assert.equal(props.along([barrel],barrel.x-1,barrel.y,.49,1,0,2).prop,barrel);
   assert.equal(props.along([barrel],barrel.x-1,barrel.y,1,1,0,2),null);
+});
+
+test('arena props use eight distinct view cells and leave short-lived physical fragments', () => {
+  const props = runInNewContext(read('../assets/props.js') + '\nferroProps');
+  for(const kind of ['crate','barrel']){
+    const cells = Array.from({length:8},(_,view)=>props.frame(kind,view));
+    assert.equal(new Set(cells.map(cell=>cell.frameX+':'+cell.frameY)).size,8);
+    assert.deepEqual([cells[0].frameX,cells[0].frameY],[0,0]);
+    assert.deepEqual([cells[4].frameX,cells[4].frameY],[0,160]);
+  }
+  const [crate,barrel] = props.spawn([[5,5]]);
+  const fragments = [];
+  props.shatter(fragments,crate,1,0);
+  props.shatter(fragments,barrel,1,0);
+  assert.equal(fragments.length,21);
+  const first = fragments[0],before = first.z;
+  props.tickFragments(fragments,()=>false,.05);
+  assert.ok(first.z>before);
+  for(let i=0;i<90;i++)props.tickFragments(fragments,()=>false,.05);
+  assert.equal(fragments.length,0);
 });
 
 test('arena enemy counts follow living enemies across rooms', () => {
