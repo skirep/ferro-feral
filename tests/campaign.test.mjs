@@ -532,3 +532,19 @@ test('viewport and photo dimensions track portrait, landscape and ultrawide scre
   assert.equal(view.projection(576,324).plane,.69);
   assert.equal(view.projection(576,324).focal,270);
 });
+
+test('Sputnik orbit encounter arms in view, releases one cache and restores daylight', () => {
+  const orbit=runInNewContext(source+'\nferroSputnikOrbit');
+  const event=orbit.create({x:25,y:25},0),sun={x:1,y:0};
+  assert.equal(orbit.update(event,{x:1,y:25,a:0},2),undefined);
+  assert.equal(orbit.update(event,{x:13,y:25,a:Math.PI},3),undefined);
+  assert.equal(orbit.update(event,{x:13,y:25,a:0},5),'signal');
+  assert.equal(orbit.sample(event,6).scan,0);
+  const middle=orbit.sample(event,12);
+  assert.ok(middle.scan>.8);
+  assert.ok(orbit.light(middle,22,25,sun)<orbit.light(middle,4,4,sun));
+  assert.ok(orbit.sample(event,17).pulse>.5);
+  assert.equal(orbit.update(event,{x:25,y:25,a:0},19),'cache');
+  assert.equal(orbit.update(event,{x:25,y:25,a:0},20),undefined);
+  assert.equal(orbit.sample(event,22),null);
+});

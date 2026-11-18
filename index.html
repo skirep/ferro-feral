@@ -105,6 +105,7 @@ body.playing #photoButton{display:block}
 <script src="./assets/sputnik-art.js?v=wildlife"></script>
 <script src="./assets/sputnik-wildlife.js"></script>
 <script src="./assets/sputnik-sun.js?v=light"></script>
+<script src="./assets/sputnik-orbit.js"></script>
 <script src="./assets/photo.js"></script>
 <script src="./assets/viewport.js"></script>
 <script src="./campaign.js?v=sputnik"></script>
@@ -137,7 +138,7 @@ const blood=[];
 const bloodColors=['#6a101d','#a0192b','#db2837','#ff514a'];
 let state='menu',time=0,elapsed=0,roomDistance,arena=false;
 let arenaCores=[],skyHeading=0,ship=null,island=null;
-let wildlife=[],sunShadows=null;
+let wildlife=[],sunShadows=null,orbit=null,orbitFrame=null;
 let arenaRoom,arenaAlive,arenaPulses,arenaDefeats;
 let props=[],playerBolts=[],blasts=[],chargedShot=null;
 const propFragments=[];
@@ -185,6 +186,12 @@ function level(index){
  foes.push(boss);keyHeld=keyDropped=false;
  const [sx,sy]=rooms[chapter.route[0]],[nx,ny]=rooms[chapter.route[1]];
  skyHeading=Math.atan2(ny-sy,nx-sx);
+ const beach=island&&chapter.stage===0?{
+  x:nx+.5,y:ny+.5,hullX:sx+.5+Math.cos(skyHeading)*20,hullY:sy+.5+Math.sin(skyHeading)*20
+ }:null;
+ orbit=island?ferroSputnikOrbit.create(island.wreck,skyHeading,beach):null;
+ orbitFrame=null;
+ if(orbit)ferroSputnikOrbit.prepare(()=>{redraw=true});
  p={x:sx+.5,y:sy+.5,a:skyHeading,z:heights[sy][sx],groundZ:heights[sy][sx],jumpTime:0,hp:100,ammo:20};
  p.safe=[p.x,p.y];
  shots=[];blood.length=0;ferroEffects.clear();heat=flash=hurt=0;
@@ -610,7 +617,18 @@ function update(dt){
  if(forward||strafe)elapsed+=dt*10;
  heat-=dt;flash-=dt;hurt-=dt;if(keys.has(' ')||firePointer!==null||padFire)fire();
  updateNavigation();
- if(island)ferroSputnikWildlife.update(wildlife,grid,p,dt,heat>0,move);
+ if(island){
+  ferroSputnikWildlife.update(wildlife,grid,p,dt,heat>0,move);
+  const cue=ferroSputnikOrbit.update(orbit,p,time,attempt.seconds);
+  if(cue){
+   if(audio?.state==='running')ferroSputnikOrbit.cue(cue,tone,audio.currentTime,fx);
+   pickupNotice=cue==='signal'?'SENYAL DETECTAT · SOBREVOL IMMINENT':'CÀRREGA OBERTA · PETJA DE L’SPUTNIK';
+   pickupTime=4.5;
+   if(cue==='cache'){
+    items.push([orbit.x-1.6,orbit.y,'ammo'],[orbit.x-.5,orbit.y+1.5,'hp']);
+   }
+  }
+ }
  const infighting=arena||!!island;
  for(const e of foes){
   e.hit-=dt;if(e.hp<=0){e.dead+=dt;continue}
@@ -808,6 +826,8 @@ function updateLights(core){
   addLight(p.x+Math.cos(p.a)*.63,p.y+Math.sin(p.a)*.63,3.5,.36*charge,boltColor[6]);
  }
  for(const shot of shots)if(Math.hypot(p.x-shot.x,p.y-shot.y)<10)addLight(shot.x,shot.y,1.45,.16,[255,130,82]);
+ if(orbitFrame?.scan)addLight(orbitFrame.targetX,orbitFrame.targetY,6,orbitFrame.scan*.7,ferroSputnikOrbit.aurora);
+ if(orbitFrame?.pulse)addLight(orbit.x,orbit.y,8,orbitFrame.pulse*.85,ferroSputnikOrbit.amber);
 }
 function lit(rgb,light,index,weight=1,fog=0,haze=rgb){
  const clear=1-fog;
@@ -850,6 +870,10 @@ function world(ca,sa,plane,eye){
   }
   ferroSputnikArt.sky(pixels,W,H,horizon,plane,viewCamera.a);
   ferroSputnikSun.drawSky(pixels,W,H,horizon,plane,focal,viewCamera.a,island.sun,blendLight);
+  if(orbitFrame?.shade){
+   const tint=[21,42,68],amount=orbitFrame.shade*.42;
+   for(let i=0;i<pixels.length;i++)pixels[i]=blendLight(pixels[i],tint,amount);
+  }
  }
  for(let x=0;x<W;x++){
   const u=(2*x/W-1)*plane,dx=ca-sa*u,dy=sa+ca*u;
@@ -895,7 +919,8 @@ function world(ca,sa,plane,eye){
       const material=island.terrain[iy][ix];
       const density=material===0?37:54;
       const u=Math.floor(wx*density)&127,v=Math.floor(wy*density)&127;
-      const sun=sunShadows?ferroSputnikSun.transmission(sunShadows,wx,wy):1;
+      const sun=(sunShadows?ferroSputnikSun.transmission(sunShadows,wx,wy):1)*
+       (orbitFrame?ferroSputnikOrbit.light(orbitFrame,wx,wy,island.sun):1);
       pixels[index]=ferroSputnikSun.surface(tropical[material][v*128+u],sun,
        .53+island.sun.elevation,dist,haze,lighting,lightAt(wx,wy),island.sun.elevation);
       depth[index]=dist;
@@ -954,7 +979,8 @@ function world(ca,sa,plane,eye){
     const illumination=1.12/(1+d*.106)*(side?.78:1);
     const faceX=viewCamera.x+dx*(d-.025),faceY=viewCamera.y+dy*(d-.025);
     const faceLight=lightAt(faceX,faceY);
-    const faceSun=sunShadows?ferroSputnikSun.transmission(sunShadows,faceX,faceY):1;
+    const faceSun=(sunShadows?ferroSputnikSun.transmission(sunShadows,faceX,faceY):1)*
+     (orbitFrame?ferroSputnikOrbit.light(orbitFrame,faceX,faceY,island.sun):1);
     const faceNormal=island?(side?-sy*island.sun.y:-sx*island.sun.x):0;
     const start=Math.max(0,Math.ceil(horizon+(eye-high)*focal/d));
     const end=Math.min(H,Math.ceil(horizon+(eye-low)*focal/d));
@@ -1170,9 +1196,22 @@ function draw(){
  horizon=H/2+Math.tan(photo?.pitch??0)*focal;
  const eye=photo?.z??cameraEye();
  const core=boss.hp>0?boss:null;
+ orbitFrame=ferroSputnikOrbit.sample(orbit,time);
  updateLights(core);
  if(island&&sunShadows)ferroSputnikSun.update(sunShadows,island,wildlife,foes,time,hopHeight);
  world(ca,sa,plane,eye);
+ if(orbitFrame){
+  const projection={
+   width:W,height:H,depth,focal,effects:settings.effects,
+   project(x,y,altitude){
+    const dx=x-viewCamera.x,dy=y-viewCamera.y,z=dx*ca+dy*sa;
+    if(z<.35)return null;
+    return {x:W/2+W/2*(-dx*sa+dy*ca)/(z*plane),y:horizon+(eye-altitude)*focal/z,z};
+   }
+  };
+  ferroSputnikOrbit.rings(ctx,orbitFrame,orbit,projection);
+  ferroSputnikOrbit.draw(ctx,orbitFrame,projection);
+ }
  drawContactShadows(ca,sa,plane,eye);
  const scene=lamps.map(([x,y],i)=>({
   x,y,art:fixtureArt[arena?arenaMaterials[Math.floor(i/4)]:levels[n].theme],size:.50,altitude:ceiling-.51,fixture:true
@@ -1250,7 +1289,8 @@ function draw(){
   if(hasArt&&island&&settings.quality!=='fluid'){
    const light=lightAt(o.x,o.y);
    const illumination=(lighting[light]+lighting[light+1]+lighting[light+2])/410;
-   const shadow=sunShadows?ferroSputnikSun.transmission(sunShadows,o.x,o.y):1;
+   const shadow=(sunShadows?ferroSputnikSun.transmission(sunShadows,o.x,o.y):1)*
+    (orbitFrame?ferroSputnikOrbit.light(orbitFrame,o.x,o.y,island.sun):1);
    const {brightness,saturation,fog}=ferroSputnikSun.spriteLight(island.sun,o.x,o.y,viewCamera,shadow,illumination);
    ctx.filter='brightness('+(o.hit?1.27:brightness+fog*.15).toFixed(2)+') saturate('+(saturation-fog*.52).toFixed(2)+')';
   }else if(hasArt&&!o.fixture){
@@ -1571,7 +1611,7 @@ async function startArena(e){
  }finally{
   loadingEnemyArt=false;button.disabled=start.disabled=false;
  }
- arena=true;n=0;ship=island=sunShadows=null;wildlife=[];
+ arena=true;n=0;ship=island=sunShadows=orbit=orbitFrame=null;wildlife=[];
  ferroEnemySprites.clear();
  const map=ferroArena.layout(mapSize,types);
  arenaCores=map.cores;
