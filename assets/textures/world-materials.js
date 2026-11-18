@@ -2,7 +2,7 @@
 const ferroSurfaces = [
  {
   material: "timber",
-  atlas: "./assets/textures/timber.png",
+  atlas: "./assets/textures/shipyard.png",
   wall: [114, 83, 53],
   floor: [71, 65, 42],
   ceiling: [46, 40, 59],

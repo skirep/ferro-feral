@@ -67,7 +67,7 @@
 <script src="./assets/levels/regne-oblidats.js"></script>
 <script src="./assets/levels/biohazard-zero.js"></script>
 <script src="./assets/levels/the-abyss.js"></script>
-<script src="./assets/textures/world-materials.js"></script>
+<script src="./assets/textures/world-materials.js?v=shipyard"></script>
 <script src="./assets/textures/load-textures.js"></script>
 <script src="./campaign.js"></script>
 <script src="./account.js"></script>
@@ -79,6 +79,7 @@
 <script src="./assets/music.js"></script>
 <script src="./assets/enemies/bestiary.js"></script>
 <script src="./assets/effects.js"></script>
+<script src="./assets/scenery.js"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
@@ -93,7 +94,7 @@ const owned=new Set([0]);
 const blood=[];
 const bloodColors=['#6a101d','#a0192b','#db2837','#ff514a'];
 let state='menu',time=0,elapsed=0,roomDistance,arena=false;
-let arenaCores=[];
+let arenaCores=[],skyHeading=0;
 let audio, music, fx, step=0, nextBeat=0, muted=false;
 function level(index){
  n=index;
@@ -104,6 +105,7 @@ function level(index){
  grid=Array.from({length:mapSize},()=>Array(mapSize).fill(1));
  heights=grid.map(row=>row.map(()=>0));
  const biome=worlds[chapter.theme];
+ if(chapter.outdoors)ferroScenery.load(chapter.theme,()=>{redraw=true});
  const orderHeight=i=>chapter.terraces[Math.min(3,Math.floor(i*4/chapter.route.length))];
  const mark=(x,y,z)=>{grid[y][x]=0;heights[y][x]=z};
  chapter.route.forEach((id,i)=>{
@@ -157,7 +159,8 @@ function level(index){
  boss.homeX=boss.x;boss.homeY=boss.y;boss.maxHp=boss.hp=chapter.bossHealth;
  foes.push(boss);keyHeld=keyDropped=false;
  const [sx,sy]=rooms[chapter.route[0]],[nx,ny]=rooms[chapter.route[1]];
- p={x:sx+.5,y:sy+.5,a:Math.atan2(ny-sy,nx-sx),z:heights[sy][sx],groundZ:heights[sy][sx],jumpTime:0,hp:100,ammo:20};
+ skyHeading=Math.atan2(ny-sy,nx-sx);
+ p={x:sx+.5,y:sy+.5,a:skyHeading,z:heights[sy][sx],groundZ:heights[sy][sx],jumpTime:0,hp:100,ammo:20};
  shots=[];blood.length=0;ferroEffects.clear();heat=flash=hurt=0;
  const [ex,ey]=rooms[chapter.route.at(-1)];
  exitPoint=[ex+2.5,ey+.5];
@@ -586,16 +589,25 @@ function updateLights(core){
  if(flash>0)addLight(p.x+Math.cos(p.a)*.6,p.y+Math.sin(p.a)*.6,4,.65*flash/.105,boltColor[weapon]);
  for(const shot of shots)if(Math.hypot(p.x-shot.x,p.y-shot.y)<10)addLight(shot.x,shot.y,1.45,.16,[255,130,82]);
 }
-function lit(rgb,light,index,weight=1){
- const r=Math.min(255,rgb[0]*light+lighting[index]*weight)|0;
- const g=Math.min(255,rgb[1]*light+lighting[index+1]*weight)|0;
- const b=Math.min(255,rgb[2]*light+lighting[index+2]*weight)|0;
+function lit(rgb,light,index,weight=1,fog=0,haze=rgb){
+ const clear=1-fog;
+ const r=Math.min(255,(rgb[0]*light+lighting[index]*weight)*clear+haze[0]*fog)|0;
+ const g=Math.min(255,(rgb[1]*light+lighting[index+1]*weight)*clear+haze[1]*fog)|0;
+ const b=Math.min(255,(rgb[2]*light+lighting[index+2]*weight)*clear+haze[2]*fog)|0;
+ return (255<<24)|(b<<16)|(g<<8)|r;
+}
+function blendLight(pixel,color,amount){
+ const r=(pixel&255)*(1-amount)+color[0]*amount;
+ const g=((pixel>>>8)&255)*(1-amount)+color[1]*amount;
+ const b=((pixel>>>16)&255)*(1-amount)+color[2]*amount;
  return (255<<24)|(b<<16)|(g<<8)|r;
 }
 function world(ca,sa,plane,eye){
  const chapter=levels[n],theme=chapter.theme;
  const [wallInk,,roofInk]=palettes[theme];
  const outdoors=!arena&&chapter.outdoors;
+ const haze=ferroScenery.haze(theme);
+ const timeRipple=settings.effects?Math.floor(time*13):0;
  depth.fill(Infinity);
  pixels.fill(shade(outdoors?ferroSurfaces[theme].sky:roofInk,outdoors?1:.24));
  if(outdoors){
@@ -603,6 +615,7 @@ function world(ca,sa,plane,eye){
    const intensity=.40+Math.min(1,y/Math.max(1,horizon))*.65;
    pixels.fill(shade(ferroSurfaces[theme].sky,intensity),y*W,(y+1)*W);
   }
+  ferroScenery.sky(pixels,W,H,horizon,p.a-skyHeading,plane,theme);
  }
  for(let x=0;x<W;x++){
   const u=(2*x/W-1)*plane,dx=ca-sa*u,dy=sa+ca*u;
@@ -630,8 +643,23 @@ function world(ca,sa,plane,eye){
      const light=1/(1+dist*.13);
      const core=arena&&!isRoof&&dist<14?arenaCores[room]:null;
      const mark=core?ferroEffects.floorMark(wx-core[0],wy-core[1]):0;
-     pixels[index]=mark?shade(ferroEffects.roomLight[room],mark===2?.86:.54)
-      :lit(texture,light,lightAt(wx,wy),isRoof?.71:1);
+     const fog=outdoors?Math.min(.64,dist*.027):0;
+     let paint=mark?shade(ferroEffects.roomLight[room],mark===2?.86:.54)
+      :lit(texture,light,lightAt(wx,wy),isRoof?.61:1,fog,haze);
+     if(core&&!mark){
+      // Mirror the crystal through the floor and break up the glint on the metal tiles.
+      const reflectionDepth=dist*(eye+1.18)/eye;
+      const rx=p.x+dx*reflectionDepth-core[0],ry=p.y+dy*reflectionDepth-core[1];
+      const spread=rx*rx+ry*ry;
+      if(spread<.63){
+       const ripple=((j*13+k*7+timeRipple)&15)*.025+.35;
+       paint=blendLight(paint,ferroEffects.roomLight[room],(1-spread/.63)*ripple);
+      }
+     }
+     if(outdoors&&!isRoof&&theme===0&&((k&63)<5||(j&127)<3)){
+      paint=blendLight(paint,[105,174,193],.12+Math.min(.30,dist*.022));
+     }
+     pixels[index]=paint;
      depth[index]=dist;
     }
    };
@@ -644,21 +672,29 @@ function world(ca,sa,plane,eye){
     const stripe=Math.floor((edge-Math.floor(edge))*64);
     const material=arena?arenaMaterials[ferroArena.roomAt(ix,iy)]:theme;
     const lamp=palettes[material][3];
-    const high=solid?ceiling:Math.max(z,next),low=solid?z:Math.min(z,next);
+    const low=solid?z:Math.min(z,next);
+    // Exterior parapets leave the skyline visible, with taller silhouettes at posts.
+    const post=solid&&outdoors&&(stripe<7||stripe>57);
+    const profile=((ix*7+iy*13)%5+5)%5;
+    const parapet=theme===0?1.03:1.20;
+    const high=solid?(outdoors?z+parapet+profile*.12+(post?.48:0):ceiling):Math.max(z,next);
+    const fog=outdoors?Math.min(.62,d*.032):0;
+    const style=((ix*19+iy*11)%3+3)%3;
+    const u=(stripe*2+(Math.floor((edge-Math.floor(edge))*128)&1))&127;
+    const illumination=1.12/(1+d*.106)*(side?.78:1);
+    const faceLight=lightAt(p.x+dx*(d-.025),p.y+dy*(d-.025));
     const start=Math.max(0,Math.ceil(horizon+(eye-high)*focal/d));
     const end=Math.min(H,Math.ceil(horizon+(eye-low)*focal/d));
     for(let y=start;y<end;y++){
      const index=y*W+x;
      if(d>=depth[index])continue;
      const altitude=eye-(y-horizon)*d/focal;
-     const row=Math.floor(altitude*96)&127;
-     const style=((ix*19+iy*11)%3+3)%3;
-     const u=(stripe*2+(Math.floor((edge-Math.floor(edge))*128)&1))&127;
+     const row=solid&&material===0?Math.min(127,Math.floor((high-altitude)*128/(high-low))):Math.floor(altitude*96)&127;
      const luminous=solid&&(arena||theme===1||theme===4)&&(row&63)>=41&&(row&63)<=43&&u>21&&u<106&&style===2;
-     const illumination=1.12/(1+d*.106)*(side?.78:1);
-     const faceLight=lightAt(p.x+dx*(d-.025),p.y+dy*(d-.025));
      const texture=solid?surfaceTextures[material][style][row*128+u]:((u+row*2)&31)<12?lamp:wallInk;
-     pixels[index]=lit(luminous?lamp:texture,illumination*(luminous?1.66:1),faceLight,.95);
+     const rim=solid&&outdoors&&high-altitude<.045;
+     const paint=lit(luminous?lamp:texture,illumination*(post?.73:luminous?1.66:1),faceLight,.95,fog,haze);
+     pixels[index]=rim?blendLight(paint,haze,.45):paint;
      depth[index]=d;
     }
    }
@@ -732,16 +768,37 @@ const keyInk=keyArt.getContext('2d');
 keyInk.fillStyle='#ffbc48';keyInk.fillRect(10,12,15,15);keyInk.fillRect(20,21,19,6);
 keyInk.fillRect(33,25,5,7);keyInk.fillRect(26,25,4,5);
 keyInk.clearRect(15,16,5,6);keyInk.fillStyle='#fff5ad';keyInk.fillRect(11,12,13,2);
+function drawContactShadows(ca,sa,plane,eye){
+ if(settings.quality==='fluid')return;
+ ctx.fillStyle='#040815';
+ for(const enemy of foes){
+  const dx=enemy.x-p.x,dy=enemy.y-p.y,z=dx*ca+dy*sa;
+  if(z<.32||z>11)continue;
+  const x=W/2+W/2*(-dx*sa+dy*ca)/(z*plane);
+  const y=horizon+(eye-floor(enemy.x,enemy.y))*focal/z;
+  const ix=Math.floor(x),iy=Math.floor(y);
+  if(ix<0||ix>=W||iy<0||iy>=H||Math.abs(depth[iy*W+ix]-z)>.40)continue;
+  const radius=Math.min(W/11,.27*focal*enemy.type.size/z);
+  ctx.globalAlpha=(1-z/12)*.32;
+  ctx.beginPath();ctx.ellipse(x,y,radius,Math.max(1,radius*.22),0,0,Math.PI*2);ctx.fill();
+ }
+ ctx.globalAlpha=1;
+}
 function draw(){
  const ca=Math.cos(p.a),sa=Math.sin(p.a),plane=.69;
  const eye=p.z+.5+Math.sin(elapsed*2)*.018;
  const core=boss.hp>0?boss:null;
  updateLights(core);
  world(ca,sa,plane,eye);
+ drawContactShadows(ca,sa,plane,eye);
  const scene=lamps.map(([x,y],i)=>({
   x,y,art:fixtureArt[arena?arenaMaterials[Math.floor(i/4)]:levels[n].theme],size:.50,altitude:ceiling-.51,fixture:true
  }));
  if(arena)arenaCores.forEach(([x,y],room)=>{
+  if(settings.quality!=='fluid'){
+   const beam=ferroScenery.beam(room,ferroEffects.roomLight[room]);
+   scene.push({x,y,art:beam,altitude:0,size:ceiling-.02,fixture:true});
+  }
   const art=ferroEffects.crystal(room,time+room*.21,settings.effects);
   scene.push({x,y,art,altitude:.30,size:1.85,fixture:true});
  });
@@ -825,6 +882,9 @@ function draw(){
    return sx>=0&&sx<W&&sy>=0&&sy<H&&z<depth[sy*W+sx]?[sx,sy,z]:null;
   },shots);
  }
+ if(!arena&&levels[n].outdoors&&settings.particles&&settings.effects){
+  ferroScenery.weather(ctx,W,H,depth,time,p.a,levels[n].theme);
+ }
  drawAtmosphere(ca,sa,plane,eye,core);
  ctx.save();
  ctx.scale(W/480,H/270);
@@ -838,15 +898,26 @@ function draw(){
  }
  if(hurt>0){ctx.fillStyle='rgba(255,36,40,'+hurt*.7+')';ctx.fillRect(0,0,480,270)}
  ctx.fillStyle='#fff0d0';ctx.fillRect(240-1,135-1,2,2);
- ctx.fillStyle='#100b17';ctx.fillRect(0,270-28,480,28);
- ctx.font='bold 11px monospace';ctx.fillStyle='#ff8b61';ctx.fillText('VIDA '+p.hp,10,270-10);
- ctx.fillStyle='#fff0d0';ctx.fillText((weapon+1)+' '+guns[weapon].name+' · '+p.ammo,78,270-10);
- ctx.fillStyle='#9ee9dd';ctx.textAlign='right';ctx.fillText(arena?'ARENA DE QUATRE SALES':(levels[n].theme+1)+'.'+(levels[n].stage+1)+'  '+levels[n].name,470,270-10);ctx.textAlign='left';
- ctx.fillStyle='#100b17d9';ctx.fillRect(8,8,200,31);
- ctx.fillStyle='#fff0d0';ctx.fillText(arena?'ENEMICS VIUS · '+foes.filter(enemy=>enemy.hp>0).length+'/'+foes.length:keyHeld?'CLAU OBTINGUDA · VES A LA SORTIDA':keyDropped?'RECULL LA CLAU':'DERROTA EL CAP I RECULL LA CLAU',14,20);
- if(!arena&&!keyDropped&&Math.hypot(p.x-boss.x,p.y-boss.y)<8){
-  ctx.fillStyle='#fa987e';ctx.fillText(levels[n].bossName,14,34);
-  ctx.fillRect(14,38,156*boss.hp/boss.maxHp,3);
+ const themeColor=arena?'#77efdc':ferroSurfaces[levels[n].theme].spark;
+ ctx.fillStyle='#08121de8';ctx.fillRect(0,245,480,25);
+ ctx.globalAlpha=.40;ctx.fillStyle=themeColor;ctx.fillRect(0,245,480,1);ctx.globalAlpha=1;
+ ctx.font='bold 10px monospace';ctx.fillStyle='#ffab86';ctx.fillText('VIDA '+p.hp,10,257);
+ ctx.fillStyle='#51323e';ctx.fillRect(10,261,53,2);
+ ctx.fillStyle='#ff835e';ctx.fillRect(10,261,53*p.hp/100,2);
+ ctx.fillStyle='#fff0d0';ctx.fillText((weapon+1)+' '+guns[weapon].name+' · '+p.ammo,78,259,171);
+ ctx.fillStyle=themeColor;ctx.textAlign='right';
+ ctx.fillText(arena?'ARENA DE QUATRE SALES':(levels[n].theme+1)+'.'+(levels[n].stage+1)+'  '+levels[n].name,470,259,210);
+ ctx.textAlign='left';
+ const objective=arena?'ENEMICS VIUS · '+foes.filter(enemy=>enemy.hp>0).length+'/'+foes.length
+  :keyHeld?'VES A LA SORTIDA':keyDropped?'RECULL LA CLAU':'DERROTA EL CAP I RECULL LA CLAU';
+ const objectiveWidth=Math.ceil(ctx.measureText(objective).width)+17;
+ const showBoss=!arena&&!keyDropped&&Math.hypot(p.x-boss.x,p.y-boss.y)<8;
+ ctx.fillStyle='#08121ddd';ctx.fillRect(8,8,Math.max(objectiveWidth,showBoss?163:0),showBoss?34:17);
+ ctx.fillStyle=themeColor;ctx.fillRect(8,8,2,showBoss?34:17);
+ ctx.fillStyle='#fff0d0';ctx.fillText(objective,15,20);
+ if(showBoss){
+  ctx.fillStyle='#fa987e';ctx.fillText(levels[n].bossName,15,33,148);
+  ctx.fillRect(15,37,148*boss.hp/boss.maxHp,2);
  }
  if(pickupTime>0){
   ctx.fillStyle='#160e19ee';ctx.fillRect(112,178,256,26);
