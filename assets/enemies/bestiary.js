@@ -23,11 +23,17 @@ const ferroBestiary=(()=>{
  });
  const roster=types.filter(type=>type.atlas);
  const spawns=ferroArena.layout(37,types).spawns;
- for(const [i,type] of roster.entries()){
-  const option=document.createElement('option');
-  option.value=i;
-  option.textContent=type.name;
-  enemy.append(option);
+ for(const [theme,world] of worlds.entries()){
+  const group=document.createElement('optgroup');
+  group.label=world.name;
+  for(const [i,type] of roster.entries()){
+   if(type.theme!==theme)continue;
+   const option=document.createElement('option');
+   option.value=i;
+   option.textContent=type.name;
+   group.append(option);
+  }
+  if(group.childElementCount)enemy.append(group);
  }
  let request=0,started=null,opened=0;
 

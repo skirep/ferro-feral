@@ -142,6 +142,28 @@ test('directional atlases load once on demand and a partial world is not ready f
   assert.deepEqual(downloads, ['./assets/enemies/360/first.webp', './assets/enemies/360/second.webp']);
 });
 
+test('a directional preview in a mixed world does not download its legacy sheets', async () => {
+  const downloads = [];
+  class FakeImage {
+    naturalWidth = 96 * 12;
+    naturalHeight = 96 * 24;
+    set src(path) {
+      downloads.push(path);
+      queueMicrotask(() => this.onload());
+    }
+  }
+  const scoped = runInNewContext(
+    'const typesByWorld = [[{slot: 0}, {slot: 1, atlas: "directional"}]];\n' +
+    read('../assets/enemies/sprites.js') + '\nferroEnemySprites',
+    { Image: FakeImage }
+  );
+  await scoped.prepare(0, [1]);
+  assert.deepEqual(downloads, ['./assets/enemies/360/directional.webp']);
+  assert.equal(scoped.ready(0, [1]), true);
+  assert.equal(scoped.ready(0, [0]), false);
+  assert.equal(scoped.ready(0), false);
+});
+
 test('progress persists across reads and replay preserves the highest unlock', () => {
   const storage = memoryStorage();
   assert.equal(readCampaignProgress(storage), 0);

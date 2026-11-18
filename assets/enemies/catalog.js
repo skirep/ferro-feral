@@ -126,11 +126,13 @@ const islandDirectional = [
  'sangonera-del-rom','esquelet-del-barril','idol-de-corall','pop-de-la-polvora','sirena-d-algues',
  'contramestre-de-la-boira','ombra-del-taverner','custodi-de-la-selva','guardia-de-les-tombes','el-capita-maleit'
 ];
+const neonDirectional = {4:'vigia-d-infraroig'};
+const directionalByWorld = [islandDirectional,neonDirectional];
 
 const types = ferroEnemyWorlds.flatMap((world, theme) =>
  ferroEnemyProfiles.map(([kind,hp,speed,body,crest,arm,size,special], slot) => ({
   id:theme*ferroEnemyProfiles.length+slot, theme, slot, kind, hp, speed, body, crest, arm,
-  size, special, world, atlas:theme===0?islandDirectional[slot]:undefined, name:ferroEnemyNames[theme][slot] ?? ferroWorldLevels[theme][slot-15].bossName
+  size, special, world, atlas:directionalByWorld[theme]?.[slot], name:ferroEnemyNames[theme][slot] ?? ferroWorldLevels[theme][slot-15].bossName
  }))
 );
 
