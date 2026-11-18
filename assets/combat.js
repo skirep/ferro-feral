@@ -21,6 +21,7 @@ const weaponMotionProfiles=[
  [113,1.8,2.2,4],[136,2.6,1.65,8],[126,1.7,2.55,3],[122,2.3,2.05,4],
  [138,2.5,1.8,6],[132,3.15,1.46,10],[140,2.85,1.58,12]
 ];
+const weaponMuzzles=[[.48,.41],[.47,.53],[.48,.39],[.47,.31],[.48,.32],[.50,.045],[.50,.045]];
 
 function weaponMotion(id,time,walk,secondsEquipped,flash,ambient){
  const [width,sway,pace,kick]=weaponMotionProfiles[id];
@@ -33,4 +34,27 @@ function weaponMotion(id,time,walk,secondsEquipped,flash,ambient){
   y:(Math.cos(breath)+.32*Math.sin(breath*1.84))*sway*amplitude+Math.sin(walk)*1.8+recoil+equip*49,
   roll:(Math.sin(breath*.77)*.026*amplitude+Math.cos(walk*.48)*.013)+equip*.16-recoil*.003
  };
+}
+
+function weaponViewmodel(id,{width,x,y,roll},heavy){
+ const height=width*(heavy?176/224:.70);
+ const [u,v]=weaponMuzzles[heavy?id:Math.min(id,4)];
+ const muzzle=[width*(u-.5),height*(v-1)];
+ const ca=Math.cos(roll),sa=Math.sin(roll);
+ x+=240;y+=249;
+ return {width,height,x,y,roll,muzzle,screenMuzzle:[x+muzzle[0]*ca-muzzle[1]*sa,y+muzzle[0]*sa+muzzle[1]*ca]};
+}
+
+function muzzleInWorld([x,y],player,eye,plane,height,focal){
+ const depth=.48,lateral=(x/240-1)*plane*depth;
+ const ca=Math.cos(player.a),sa=Math.sin(player.a);
+ return [player.x+ca*depth-sa*lateral,player.y+sa*depth+ca*lateral,eye-(y/270-.5)*height*depth/focal];
+}
+
+function boltTrailPoint(bolt,behind=0){
+ const distance=Math.max(0,bolt.traveled-behind);
+ const join=.95,pathDistance=Math.max(join,distance);
+ const point=[bolt.origin[0]+bolt.dx*pathDistance,bolt.origin[1]+bolt.dy*pathDistance,bolt.altitude];
+ if(distance>=join)return point;
+ return point.map((value,axis)=>bolt.muzzle[axis]+(value-bolt.muzzle[axis])*distance/join);
 }

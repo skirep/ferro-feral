@@ -300,3 +300,27 @@ test('the seven viewmodels animate at rest and the two charged weapons keep thei
   assert.deepEqual(Array.from(specialArsenal(10)),[5]);
   assert.deepEqual(Array.from(specialArsenal(11)),[5,6]);
 });
+
+test('player shots start at the animated muzzle and explosive shots join the aiming axis', () => {
+  const {weaponMotion,weaponViewmodel,muzzleInWorld,boltTrailPoint} = runInNewContext(
+    read('../assets/combat.js')+'\n({weaponMotion,weaponViewmodel,muzzleInWorld,boltTrailPoint})'
+  );
+  const player={x:4,y:7,a:1.24},eye=.84,plane=.69;
+  const ca=Math.cos(player.a),sa=Math.sin(player.a);
+  for(const [w,h] of [[416,234],[704,396]]){
+    const focal=w*270/576;
+    for(let id=0;id<7;id++){
+      const model=weaponViewmodel(id,weaponMotion(id,2,7,.8,.105,true),id>=5);
+      const muzzle=muzzleInWorld(model.screenMuzzle,player,eye,plane,h,focal);
+      const dx=muzzle[0]-player.x,dy=muzzle[1]-player.y,depth=dx*ca+dy*sa;
+      const x=w/2+w/2*(-dx*sa+dy*ca)/(depth*plane);
+      const y=h/2+(eye-muzzle[2])*focal/depth;
+      assert.ok(Math.abs(x*480/w-model.screenMuzzle[0])<1e-9);
+      assert.ok(Math.abs(y*270/h-model.screenMuzzle[1])<1e-9);
+      const bolt={origin:[player.x,player.y],dx:ca,dy:sa,altitude:eye-.02,muzzle,traveled:.3};
+      assert.deepEqual(boltTrailPoint(bolt,.3),muzzle);
+      bolt.traveled=2;
+      assert.deepEqual(Array.from(boltTrailPoint(bolt)),[player.x+ca*2,player.y+sa*2,bolt.altitude]);
+    }
+  }
+});

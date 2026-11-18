@@ -126,14 +126,15 @@ const ferroEffects=(()=>{
     spark(shot.x-vx*d,shot.y-vy*d,shot.altitude-shot.slope*d,i?shot.color:'#fff4cf',1-i*.17,i?7:12);
    }
   }
-  for(const {x,y,altitude,dx,dy,gun} of bolts){
+  for(const bolt of bolts){
+   const {gun,traveled}=bolt;
    const omega=!!gun.projectile.charge;
    const count=detail?(omega?11:7):4;
    for(let i=count;i>=0;i--){
     const offset=i*(omega?.14:.19),fade=1-i/(count+1);
-    spark(x-dx*offset,y-dy*offset,altitude+.008*i,i<2?'#fff8d4':gun.color,fade,
-     (omega?34:16)*(i?fade:.98));
-    if(omega&&detail&&i&&i%2===0)spark(x-dx*offset-dy*.18,y-dy*offset+dx*.18,altitude+.10,gun.color,fade*.6,13);
+    if(offset>traveled)continue;
+    const [x,y,z]=boltTrailPoint(bolt,offset);
+    spark(x,y,z,i<2?'#fff8d4':gun.color,fade,(omega?34:16)*(i?fade:.98));
    }
   }
   for(const {from,to,color,heavy,t,life} of traces){

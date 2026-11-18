@@ -74,12 +74,12 @@
 <script src="./supabase-config.js"></script>
 <script src="./assets/enemies/catalog.js?v=neon-360"></script>
 <script src="./assets/enemies/sprites.js?v=neon-360"></script>
-<script src="./assets/combat.js?v=compact-viewmodels"></script>
+<script src="./assets/combat.js?v=muzzle-origin"></script>
 <script src="./assets/props.js?v=props-360"></script>
 <script src="./assets/levels/arena.js?v=arena-surge"></script>
 <script src="./assets/music.js"></script>
 <script src="./assets/enemies/bestiary.js?v=neon-360"></script>
-<script src="./assets/effects.js?v=arena-surge"></script>
+<script src="./assets/effects.js?v=muzzle-origin"></script>
 <script src="./assets/scenery.js"></script>
 <script>
 'use strict';
@@ -89,6 +89,7 @@ let W=576,H=324;
 ctx.imageSmoothingEnabled=false;
 const mapSize=37;
 const keys=new Set();
+const viewPlane=.69;
 let attempt,checkpoint;
 let n=0,grid,heights,foes,shots,items,p,weapon,heat,flash,hurt,exitPoint,lamps,ceiling,pickupNotice,pickupTime,boss,keyHeld,keyDropped;
 const owned=new Set([0]);
@@ -359,7 +360,7 @@ function fire(){
  attempt.shots++;
  if(targets.length)attempt.hits++;
  if(settings.effects){
-  const source=[p.x+ca*.39-sa*.10,p.y+sa*.39+ca*.10,p.z+.32];
+  const source=worldMuzzle();
   const target=targets[0];
   let end;
   if(target){
@@ -399,8 +400,9 @@ function fire(){
 }
 function launchBolt(gun){
  const dx=Math.cos(p.a),dy=Math.sin(p.a),altitude=p.z+.48;
- playerBolts.push({x:p.x,y:p.y,altitude,dx,dy,gun,life:gun.projectile.life});
  flash=.105;flashWeapon=guns.indexOf(gun);
+ playerBolts.push({x:p.x,y:p.y,altitude,dx,dy,gun,life:gun.projectile.life,
+  origin:[p.x,p.y],muzzle:worldMuzzle(),traveled:0});
 }
 function impactProp(prop,power,dx,dy,color){
  if(prop.hp<=0)return;
@@ -425,6 +427,7 @@ function advanceBolt(bolt,dt){
   if(wall(x,y)||floor(x,y)>=altitude||altitude>=ceiling)return false;
   if(ferroProps.along(props,bolt.x,bolt.y,altitude,dx,dy,step))return false;
   bolt.x=x;bolt.y=y;
+  bolt.traveled+=step;
   if(foes.some(enemy=>enemy.hp>0&&Math.abs(enemy.x-x)<.30&&Math.abs(enemy.y-y)<.30&&
    Math.abs(enemyAltitude(enemy)-altitude)<.48&&Math.hypot(enemy.x-x,enemy.y-y)<.32))return false;
  }
@@ -982,18 +985,24 @@ function drawContactShadows(ca,sa,plane,eye){
  for(const prop of props)if(prop.hp>0)shadow(prop,prop.radius,.56,prop.z);
  ctx.globalAlpha=1;
 }
-function drawWeapon(){
+function currentViewmodel(){
  if(weaponShown!==weapon){weaponShown=weapon;weaponSince=time}
+ const heavy=weapon>=5&&heavyWeaponReady;
+ const visibleFlash=heat>0&&flashWeapon===weapon?flash:0;
+ const motion=weaponMotion(weapon,time,elapsed,time-weaponSince,visibleFlash,settings.effects);
+ return weaponViewmodel(weapon,motion,heavy);
+}
+function cameraEye(){return p.z+.5+Math.sin(elapsed*2)*.018}
+function worldMuzzle(){return muzzleInWorld(currentViewmodel().screenMuzzle,p,cameraEye(),viewPlane,H,focal)}
+function drawWeapon(){
  const gun=guns[weapon];
  const firing=heat>0&&flashWeapon===weapon;
  const cycle=firing?Math.max(1,Math.min(19,Math.floor((1-heat/gun.rate)*19)+1)):0;
- const age=time-weaponSince;
- const {width,x,y,roll}=weaponMotion(weapon,time,elapsed,age,firing?flash:0,settings.effects);
  const heavy=weapon>=5&&heavyWeaponReady;
- const height=width*(heavy?176/224:.70);
+ const {width,height,x,y,roll,muzzle}=currentViewmodel();
  const charge=weapon===6&&chargedShot?1-chargedShot.remaining/gun.projectile.charge:0;
  if(!heavy&&!weaponReady)return;
- ctx.save();ctx.translate(240+x,249+y);ctx.rotate(roll);
+ ctx.save();ctx.translate(x,y);ctx.rotate(roll);
  if(heavy){
   if(charge>0)ctx.filter='brightness('+(1+charge*.52).toFixed(2)+')';
   ctx.drawImage(heavyWeaponSheet,(weapon-5)*224,0,224,176,-width/2,-height,width,height);
@@ -1004,10 +1013,10 @@ function drawWeapon(){
   halo.addColorStop(0,gun.color);halo.addColorStop(1,'transparent');
   ctx.globalAlpha=glow;ctx.fillStyle=halo;ctx.fillRect(-32,center-32,64,64);ctx.globalAlpha=1;
   if(firing&&flash>0&&settings.effects){
-   const tip=-height+.08*height, size=flash/.105*(weapon===6?27:20);
-   const bloom=ctx.createRadialGradient(0,tip,1,0,tip,Math.max(2,size));
+   const [tipX,tipY]=muzzle,size=flash/.105*(weapon===6?27:20);
+   const bloom=ctx.createRadialGradient(tipX,tipY,1,tipX,tipY,Math.max(2,size));
    bloom.addColorStop(0,'#fff5d5');bloom.addColorStop(.23,gun.color);bloom.addColorStop(1,'transparent');
-   ctx.fillStyle=bloom;ctx.fillRect(-size,tip-size,size*2,size*2);
+   ctx.fillStyle=bloom;ctx.fillRect(tipX-size,tipY-size,size*2,size*2);
   }
  }else{
   ctx.drawImage(weaponSheet,cycle*160,Math.min(4,weapon)*112,160,112,-width/2,-height,width,height);
@@ -1015,8 +1024,8 @@ function drawWeapon(){
  ctx.restore();
 }
 function draw(){
- const ca=Math.cos(p.a),sa=Math.sin(p.a),plane=.69;
- const eye=p.z+.5+Math.sin(elapsed*2)*.018;
+ const ca=Math.cos(p.a),sa=Math.sin(p.a),plane=viewPlane;
+ const eye=cameraEye();
  const core=boss.hp>0?boss:null;
  updateLights(core);
  world(ca,sa,plane,eye);
@@ -1054,7 +1063,8 @@ function draw(){
  });
  if(!settings.effects)for(const s of shots)scene.push({...s,size:.14,offset:.50});
  if(!settings.effects)for(const bolt of playerBolts){
-  scene.push({x:bolt.x,y:bolt.y,altitude:bolt.altitude,size:bolt.gun.projectile.charge?.25:.13,color:bolt.gun.color});
+  const [x,y,altitude]=boltTrailPoint(bolt);
+  scene.push({x,y,altitude,size:bolt.gun.projectile.charge?.25:.13,color:bolt.gun.color});
  }
  for(const [x,y,kind,id] of items){
   if(kind==='key'){scene.push({x,y,art:keyArt,size:.52,offset:.07+Math.sin(time*4)*.07,fixture:true});continue}
