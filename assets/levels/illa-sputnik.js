@@ -1,6 +1,7 @@
 // Room IDs are ordered left to right on a 4 × 4 grid.
 const ferroSputnik=(()=>{
  const theme=5;
+ const sunlight=[[.03,.30],[-.34,.44],[2.88,.25],[-1.87,.48],[1.84,.19]];
  const stages=[
   ['Platja de les Palmeres',[0,1,5,6,10,11,15],[0,1,1,0,0,1],105],
   ['Congost de les Falgueres',[12,13,9,5,4,0,1,2,6,10,14],[1,0,0,1,0,1,1,0],130],
@@ -8,7 +9,7 @@ const ferroSputnik=(()=>{
   ['Bosc de les Arrels',[15,11,7,6,2,1,0,4,5,9,10,14,13],[1,0,1,0,0,1,0,1,1,0],175],
   ['Cràter de l’Sputnik',[4,8,12,13,9,5,1,2,3,7,11,15,14,10],[0,1,0,1,1,0,0,1,0,1,1,0],205]
  ].map(([name,route,roster,bossHealth],stage)=>({
-  name,route,roster,bossHealth,stage,outdoors:true,
+  name,route,roster,bossHealth,stage,outdoors:true,sun:sunlight[stage],
   arenas:[route[2],10],boss:1,secret:[route[3],1],terraces:[0,0,0,0]
  }));
 
@@ -19,6 +20,8 @@ const ferroSputnik=(()=>{
   const positions=[7,16,25,38];
   const rooms=Array.from({length:16},(_,i)=>[positions[i%4],positions[i>>2]]);
   const plants=[];
+  const [azimuth,elevation]=chapter.sun;
+  const sun={azimuth,elevation,x:Math.cos(azimuth),y:Math.sin(azimuth),reach:1/Math.tan(elevation)};
   const airAnchors=chapter.route.map(id=>rooms[id].map(value=>value+.5));
   const carve=(x,y,material)=>{
    grid[y][x]=0;
@@ -66,7 +69,7 @@ const ferroSputnik=(()=>{
   }
   plants.push(wreck);
   const [secretX,secretY]=rooms[chapter.secret[0]];
-  return {grid,heights,terrain,rooms,plants,wreck,airAnchors,secret:[secretX+2.5,secretY-1.5]};
+  return {grid,heights,terrain,rooms,plants,wreck,sun,airAnchors,secret:[secretX+2.5,secretY-1.5]};
  }
 
  // Rivals are preferred while visible. Guards holding their own ground still fire at the player.

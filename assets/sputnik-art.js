@@ -1,6 +1,6 @@
 const ferroSputnikArt=(()=>{
- let pending, sprites, materials, panorama;
- const cell=160;
+ let pending, sprites, wildlife, materials, panorama;
+ const cell=160,animalCell=96;
 
  function load(path){
   return new Promise((resolve,reject)=>{
@@ -21,14 +21,16 @@ const ferroSputnikArt=(()=>{
  }
 
  function prepare(){
-  pending??=Promise.all([load('foliage.webp'),load('terrain.webp'),load('coast.webp')]).then(([flora,ground,sky])=>{
+  pending??=Promise.all([load('foliage.webp'),load('terrain.webp'),load('coast.webp'),load('wildlife.webp')]).then(([flora,ground,sky,animals])=>{
    if(flora.naturalWidth!==8*cell||flora.naturalHeight!==5*cell||
-    ground.naturalWidth!==256||ground.naturalHeight!==256)throw new Error('Invalid Sputnik atlas dimensions');
+    ground.naturalWidth!==256||ground.naturalHeight!==256||
+    animals.naturalWidth!==8*animalCell||animals.naturalHeight!==16*animalCell)throw new Error('Invalid Sputnik atlas dimensions');
    const sample=pixels(ground);
    materials=Array.from({length:4},(_,tile)=>Uint32Array.from({length:128*128},(_,i)=>
     sample[((tile>>1)*128+(i>>7))*256+(tile%2)*128+(i&127)]&0xffffff
    ));
    panorama={width:sky.naturalWidth,height:sky.naturalHeight,pixels:pixels(sky)};
+   wildlife=animals;
    sprites=flora;
   }).catch(error=>{pending=null;throw error});
   return pending;
@@ -38,6 +40,14 @@ const ferroSputnikArt=(()=>{
   if(!sprites)return null;
   plant.view=ferroEnemySprites.viewFor(plant.yaw,bearing,plant.view);
   return {art:sprites,frameX:plant.view*cell,frameY:plant.kind*cell,frameSize:cell};
+ }
+
+ function animalFrame(animal,bearing){
+  if(!wildlife)return null;
+  animal.view=ferroEnemySprites.viewFor(animal.facing,bearing,animal.view);
+  const view=(8-animal.view)%8;
+  return {art:wildlife,frameX:view*animalCell,
+   frameY:(animal.kind*4+animal.frame)*animalCell,frameSize:animalCell};
  }
 
  function sky(buffer,width,height,horizon,plane,heading){
@@ -54,5 +64,5 @@ const ferroSputnikArt=(()=>{
   }
  }
 
- return {prepare,ready:()=>!!sprites,frame,sky,materials:()=>materials};
+ return {prepare,ready:()=>!!sprites,frame,animalFrame,sky,materials:()=>materials};
 })();

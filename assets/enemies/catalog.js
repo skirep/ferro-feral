@@ -151,8 +151,8 @@ const islandReinforcements = [
 
 types.push(...islandReinforcements);
 const sputnikFighters=[
- {name:'Exploradora del Manglar',atlas:'exploradora-del-manglar',faction:'manglar',kind:'strafer',hp:44,speed:1.78,size:1.14,world:{glow:'#ffae60'}},
- {name:'Fuseller del Cràter',atlas:'fuseller-del-crater',faction:'crater',kind:'burst',hp:58,speed:1.30,size:1.22,world:{glow:'#77d6ff'}}
+ {name:'Exploradora del Manglar',atlas:'exploradora-del-manglar-v2',faction:'manglar',kind:'strafer',hp:44,speed:1.78,size:1.14,world:{glow:'#ffae60'}},
+ {name:'Fuseller del Cràter',atlas:'fuseller-del-crater-v2',faction:'crater',kind:'burst',hp:58,speed:1.30,size:1.22,world:{glow:'#77d6ff'}}
 ].map((type,slot)=>({...type,id:types.length+slot,slot,theme:ferroSputnik.theme,special:false}));
 types.push(...sputnikFighters);
 const typesByWorld = ferroWorldLevels.map((_, theme) => types.filter(type => type.theme===theme));

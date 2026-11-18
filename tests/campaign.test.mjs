@@ -92,7 +92,7 @@ test('all campaign enemy and weapon sprite files exist', () => {
     read('../assets/levels/arena.js'),
     '({typesByWorld, spawns: ferroArena.layout(37, types).spawns})'
   ].join('\n'));
-  const files = new Set(['weapons.webp', 'heavy-weapons.webp', 'props/crate.webp', 'props/barrel.webp']);
+  const files = new Set(['weapons.webp', 'heavy-weapons.webp', 'props/crate.webp', 'props/barrel.webp', 'sputnik/wildlife.webp']);
   for (const { theme, roster, boss } of levels) {
     for (const slot of [...roster, boss]) {
       const type = typesByWorld[theme][slot];
@@ -422,4 +422,53 @@ test('unlocking island stages preserves the five existing worlds', () => {
   assert.ok(levelAvailable(next,26));
   assert.deepEqual([...next.slice(0,5)],[...previous.slice(0,5)]);
   assert.deepEqual(readWorldProgress(storage),next);
+});
+
+test('each island stage places the sun differently and casts moving shadows away from it', () => {
+  const { island, sunlight, size } = runInNewContext(source + '\n({island:ferroSputnik,sunlight:ferroSputnikSun,size:ferroShip.mapSize})');
+  const suns = island.stages.map(chapter => island.layout(chapter,size).sun);
+  assert.equal(new Set(suns.map(sun=>sun.azimuth)).size,5);
+  assert.equal(new Set(suns.map(sun=>sun.elevation)).size,5);
+  for(const sun of suns){
+    const width=size*12;
+    const field={width,staticShade:new Uint8Array(width*width),dynamic:new Uint8Array(width*width),updated:-Infinity};
+    const actor={x:20.5,y:20.5,hp:50,dead:0};
+    sunlight.update(field,{sun},[],[actor],0,()=>0);
+    const extension=.92*.5*sun.reach;
+    assert.ok(sunlight.transmission(field,actor.x-sun.x*extension,actor.y-sun.y*extension)<.85);
+    assert.equal(sunlight.transmission(field,actor.x+sun.x*extension,actor.y+sun.y*extension),1);
+    sunlight.update(field,{sun},[],[actor],1,()=>.45);
+    const airborne=(.92*.5+.45)*sun.reach;
+    assert.ok(sunlight.transmission(field,actor.x-sun.x*airborne,actor.y-sun.y*airborne)<.85);
+  }
+});
+
+test('island wildlife includes roaming land species and a flying flock', () => {
+  const { island, wildlife, size } = runInNewContext(source + '\n({island:ferroSputnik,wildlife:ferroSputnikWildlife,size:ferroShip.mapSize})');
+  for(const chapter of island.stages){
+    const map=island.layout(chapter,size);
+    const animals=wildlife.spawn(map);
+    const start=animals.map(({x,y})=>[x,y]);
+    assert.equal(new Set(animals.map(animal=>animal.kind)).size,4);
+    const [x,y]=map.airAnchors[0];
+    const player={x,y};
+    const move=(animal,dx,dy)=>{
+      if(map.grid[Math.floor(animal.y+dy)]?.[Math.floor(animal.x+dx)]===0){
+        animal.x+=dx;animal.y+=dy;
+      }
+    };
+    const excursion=animals.map(()=>0);
+    for(let i=0;i<140;i++){
+      wildlife.update(animals,map.grid,player,.035,i<20,move);
+      animals.forEach((animal,index)=>{
+        excursion[index]=Math.max(excursion[index],Math.hypot(animal.x-start[index][0],animal.y-start[index][1]));
+      });
+    }
+    for(const [i,animal] of animals.entries()){
+      assert.ok(excursion[i]>.20);
+
+      if(animal.kind===2)assert.ok(animal.altitude>1);
+      else assert.equal(map.grid[Math.floor(animal.y)][Math.floor(animal.x)],0);
+    }
+  }
 });
