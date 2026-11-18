@@ -3,20 +3,27 @@ const ferroSputnikOrbit=(()=>{
  const aurora=[47,221,232], amber=[255,164,75];
  const clamp=value=>Math.max(0,Math.min(1,value));
  const ease=value=>{const t=clamp(value);return t*t*(3-2*t)};
- let art,loading=false;
+ const angleWidth=416,angleHeight=168;
+ let art,angles,loading=false;
 
  function prepare(onReady){
   if(art||loading)return;
   loading=true;
-  const image=new Image();
+  const image=new Image(),directions=new Image();
   image.onload=()=>{art=image;loading=false;onReady()};
   image.onerror=()=>{loading=false};
+  directions.onload=()=>{
+   if(directions.naturalWidth===angleWidth*4&&directions.naturalHeight===angleHeight*2){
+    angles=directions;onReady();
+   }
+  };
   image.src='./assets/sputnik/carrier.webp';
+  directions.src='./assets/sputnik/carrier-360.webp';
  }
 
  function create(wreck,heading,beach){
-  return {x:wreck.x,y:wreck.y,dx:-Math.sin(heading),dy:Math.cos(heading),
-   beach,started:null,rewarded:false};
+  return {x:wreck.x,y:wreck.y,dx:-Math.sin(heading),dy:Math.cos(heading),heading,
+   beach,started:null,rewarded:false,deployed:new Set()};
  }
 
  function update(event,player,time,elapsed=0){
@@ -52,10 +59,31 @@ const ferroSputnikOrbit=(()=>{
   return {age,x:anchorX+event.dx*drift,y:anchorY+event.dy*drift,
    z:5.85+.85*transfer+3.5*(1-approach)+8*departure+hover,visibility:ease((age-1)/2)*(1-ease((age-14)/3)),
    shade:.62*approach*(1-departure),scan,bank,thrust,lock,
+   heading:event.heading+Math.PI+transfer*.64-departure*1.38,
    distress:ease(age/.6)*(1-ease((age-9.6)/2)),
    targetX:scanX+Math.sin(age*1.36)*4.3*(1-ease((age-9.4)/1.8)),
    targetY:scanY+Math.cos(age*1.36)*4.3*(1-ease((age-9.4)/1.8)),
    pulse:age>11.35?1-ease(wave):0,wave:clamp(wave)*16};
+ }
+
+ function boarding(event,time){
+  if(!event||event.started===null)return [];
+  const age=time-event.started;
+  const beach=!!event.beach;
+  const landX=beach?16.65:event.x-1.8,landY=beach?8.8:event.y;
+  const descent=[];
+  for(let id=0;id<3;id++){
+   const start=5.45+id*.73;
+   const progress=(age-start)/2.05;
+   if(progress<0)continue;
+   const hull=sample(event,event.started+start);
+   const mix=ease(progress);
+   const x=landX+id*.78,y=landY+id*.65;
+   const facing=Math.atan2(y-hull.y,x-hull.x);
+   descent.push({id,facing,x:hull.x+(x-hull.x)*mix,y:hull.y+(y-hull.y)*mix,
+    z:Math.max(0,(hull.z-.65)*(1-mix)),landed:progress>=1,frame:Math.min(11,Math.floor(clamp(progress)*12))});
+  }
+  return descent;
  }
 
  function light(state,x,y,sun){
@@ -184,14 +212,19 @@ const ferroSputnikOrbit=(()=>{
    ctx.restore();
   }
   if(hull&&state.visibility){
-   const w=11.8*focal/hull.z,h=w*(art?art.height/art.width:.29),x=hull.x-w/2,y=hull.y-h*.62;
+   const w=11.8*focal/hull.z,h=w*(angles?angleHeight/angleWidth:art?art.height/art.width:.29);
+   const x=hull.x-w/2,y=hull.y-h*.62;
    if(x<width&&x+w>0&&y<height&&y+h>0){
     const bank=effects?state.bank:0;
     ctx.save();visibilityPath(ctx,v,[x-w*.06,x+w*1.06,y-h*.43,y+h*1.45],hull.z);
     ctx.globalAlpha=state.visibility;
     if(art){
      ctx.translate(hull.x,hull.y);ctx.rotate(bank);
-     ctx.drawImage(art,-w/2,-h*.62,w,h);
+     if(angles&&v.camera){
+      const bearing=Math.atan2(v.camera.y-state.y,v.camera.x-state.x);
+      const view=(8-ferroEnemySprites.viewFor(state.heading,bearing))%8;
+      ctx.drawImage(angles,(view%4)*angleWidth,Math.floor(view/4)*angleHeight,angleWidth,angleHeight,-w/2,-h*.62,w,h);
+     }else ctx.drawImage(art,-w/2,-h*.62,w,h);
      animateCarrier(ctx,state,v,w,h);
     }
     else{
@@ -303,5 +336,5 @@ const ferroSputnikOrbit=(()=>{
   const notes=kind==='signal'?[[84,2,.23,40],[367,.23,.13,503],[503,.38,.12,683]]:[[60,1.7,.30,27],[180,1.0,.18,72],[712,.70,.09,1200]];
   notes.forEach(([pitch,length,volume,end],i)=>tone(pitch,length,volume,i?'sine':'triangle',when+i*.16,out,end));
  }
- return {prepare,create,update,sample,light,disturbance,plantSway,draw,rings,debris,wreck,cue,aurora,amber};
+ return {prepare,create,update,sample,boarding,light,disturbance,plantSway,draw,rings,debris,wreck,cue,aurora,amber};
 })();

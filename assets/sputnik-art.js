@@ -1,6 +1,6 @@
 const ferroSputnikArt=(()=>{
  let pending, sprites, wildlife, materials, panorama;
- const cell=160,animalCell=96;
+ const cell=160,animalCell=96,materialSize=512;
 
  function load(path){
   return new Promise((resolve,reject)=>{
@@ -21,14 +21,29 @@ const ferroSputnikArt=(()=>{
  }
 
  function prepare(){
-  pending??=Promise.all([load('foliage.webp'),load('terrain.webp'),load('coast.webp'),load('wildlife.webp')]).then(([flora,ground,sky,animals])=>{
+  pending??=Promise.all([load('foliage.webp'),load('terrain-hd.webp'),load('coast.webp'),load('wildlife.webp')]).then(([flora,ground,sky,animals])=>{
    if(flora.naturalWidth!==8*cell||flora.naturalHeight!==5*cell||
-    ground.naturalWidth!==256||ground.naturalHeight!==256||
+    ground.naturalWidth!==materialSize*2||ground.naturalHeight!==materialSize*2||
     animals.naturalWidth!==8*animalCell||animals.naturalHeight!==16*animalCell)throw new Error('Invalid Sputnik atlas dimensions');
    const sample=pixels(ground);
-   materials=Array.from({length:4},(_,tile)=>Uint32Array.from({length:128*128},(_,i)=>
-    sample[((tile>>1)*128+(i>>7))*256+(tile%2)*128+(i&127)]&0xffffff
-   ));
+   materials=Array.from({length:4},(_,tile)=>{
+    const levels=[Uint32Array.from({length:materialSize*materialSize},(_,i)=>{
+     const x=(tile%2)*materialSize+i%materialSize,y=(tile>>1)*materialSize+Math.floor(i/materialSize);
+     return sample[y*materialSize*2+x]&0xffffff;
+    })];
+    for(let size=materialSize/2;size>=64;size/=2){
+     const prior=levels.at(-1);
+     levels.push(Uint32Array.from({length:size*size},(_,i)=>{
+      const at=Math.floor(i/size)*size*4+(i%size)*2;
+      const a=prior[at],b=prior[at+1],c=prior[at+size*2],d=prior[at+size*2+1];
+      const red=((a&255)+(b&255)+(c&255)+(d&255))>>2;
+      const green=((a>>8&255)+(b>>8&255)+(c>>8&255)+(d>>8&255))>>2;
+      const blue=((a>>16)+(b>>16)+(c>>16)+(d>>16))>>2;
+      return red|(green<<8)|(blue<<16);
+     }));
+    }
+    return levels;
+   });
    panorama={width:sky.naturalWidth,height:sky.naturalHeight,pixels:pixels(sky)};
    wildlife=animals;
    sprites=flora;
@@ -64,5 +79,5 @@ const ferroSputnikArt=(()=>{
   }
  }
 
- return {prepare,ready:()=>!!sprites,frame,animalFrame,sky,materials:()=>materials};
+ return {prepare,ready:()=>!!sprites,frame,animalFrame,sky,materialSize,materials:()=>materials};
 })();

@@ -52,7 +52,7 @@ body.playing #photoButton{display:block}
 </style>
 <canvas id="screen" width="576" height="324" aria-label="Ferro Feral"></canvas>
 <section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">Travessa la nau, salta per sobre les bretxes i recupera les claus del Llindar.</p><p id="accountStatus" role="status" hidden></p><div id="menuActions"><button id="start">Inicia la campanya</button><button id="menuArena">Arena de quatre sales</button><button id="menuArenaExit" hidden>Surt de l’arena</button><button id="menuCampaign">Tria un món</button><button id="menuBestiary">Bestiari 360°</button><button id="accountButton" hidden>Entra amb Google</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
-<section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><label>Món <select id="worldSelect"></select></label><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label>Volum dels efectes <input id="fxVolume" type="range" min="0" max="1" step=".05"></label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label><label><input id="effectsOption" type="checkbox" checked> Esteles, impactes i llum animada</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–7 per canviar d’arma, Q per saltar, P per obrir el mode foto i Esc per pausar.</p><p><b>Mòbil</b> · Mou el bolet per caminar o porta’l fins a la vora per córrer. Pots prémer Salt mentre mantens el bolet. Arrossega la vista per girar i toca FOC o Arma.</p><p><b>Comandament</b> · Estic esquerre per moure’t, dret per girar, RT per disparar, A per saltar, Y per canviar d’arma i Menú per pausar o continuar.</p></div>
+<section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><label>Món <select id="worldSelect"></select></label><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option><option value="ultra">HD</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label>Volum dels efectes <input id="fxVolume" type="range" min="0" max="1" step=".05"></label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label><label><input id="effectsOption" type="checkbox" checked> Esteles, impactes i llum animada</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–7 per canviar d’arma, Q per saltar, P per obrir el mode foto i Esc per pausar.</p><p><b>Mòbil</b> · Mou el bolet per caminar o porta’l fins a la vora per córrer. Pots prémer Salt mentre mantens el bolet. Arrossega la vista per girar i toca FOC o Arma.</p><p><b>Comandament</b> · Estic esquerre per moure’t, dret per girar, RT per disparar, A per saltar, Y per canviar d’arma i Menú per pausar o continuar.</p></div>
 <div id="bestiaryPanel" hidden>
  <h2>Bestiari 360°</h2>
  <div id="bestiaryControls">
@@ -101,17 +101,18 @@ body.playing #photoButton{display:block}
 <script src="./assets/textures/world-materials.js?v=arena-surge"></script>
 <script src="./assets/textures/load-textures.js?v=arena-surge"></script>
 <script src="./assets/levels/ship.js"></script>
-<script src="./assets/levels/illa-sputnik.js?v=sun"></script>
-<script src="./assets/sputnik-art.js?v=wildlife"></script>
+<script src="./assets/levels/illa-sputnik.js?v=boarding"></script>
+<script src="./assets/sputnik-art.js?v=hd"></script>
 <script src="./assets/sputnik-wildlife.js?v=orbital-motion"></script>
 <script src="./assets/sputnik-sun.js?v=light"></script>
-<script src="./assets/sputnik-orbit.js?v=motion"></script>
+<script src="./assets/sputnik-orbit.js?v=boarding"></script>
+<script src="./assets/sputnik-routes.js"></script>
 <script src="./assets/photo.js"></script>
 <script src="./assets/viewport.js"></script>
 <script src="./campaign.js?v=sputnik"></script>
 <script src="./account.js"></script>
 <script src="./supabase-config.js"></script>
-<script src="./assets/enemies/catalog.js?v=sputnik-hd"></script>
+<script src="./assets/enemies/catalog.js?v=boarding"></script>
 <script src="./assets/enemies/character-motion.js"></script>
 <script src="./assets/enemies/sprites.js?v=sputnik-hd"></script>
 <script src="./assets/combat.js?v=muzzle-origin"></script>
@@ -138,14 +139,14 @@ const blood=[];
 const bloodColors=['#6a101d','#a0192b','#db2837','#ff514a'];
 let state='menu',time=0,elapsed=0,roomDistance,arena=false;
 let arenaCores=[],skyHeading=0,ship=null,island=null;
-let wildlife=[],sunShadows=null,orbit=null,orbitFrame=null;
+let wildlife=[],sunShadows=null,orbit=null,orbitFrame=null,islandRoutes=null;
 let arenaRoom,arenaAlive,arenaPulses,arenaDefeats;
 let props=[],playerBolts=[],blasts=[],chargedShot=null;
 const propFragments=[];
 let weaponShown,weaponSince=0,flashWeapon=0;
 function levelEnemySlots(index){
  const {roster,boss}=levels[index];
- return [...roster,boss];
+ return levels[index].theme===ferroSputnik.theme?[...roster,boss,sputnikBoarder.slot]:[...roster,boss];
 }
 let audio, music, fx, step=0, nextBeat=0, muted=false;
 function level(index){
@@ -157,6 +158,12 @@ function level(index){
  island=chapter.theme===ferroSputnik.theme?ferroSputnik.layout(chapter,mapSize):null;
  ship=island?null:ferroShip.layout(chapter);
  const map=island??ship;
+ islandRoutes=island&&chapter.stage===0?ferroSputnikRoutes.build(island):null;
+ if(islandRoutes){
+  ferroSputnikRoutes.prepare();
+  island.plants=island.plants.filter(plant=>!islandRoutes.cavern[Math.floor(plant.y)]?.[Math.floor(plant.x)]&&
+   !(plant.y<4.8&&(Math.abs(plant.x-14.5)<1||Math.abs(plant.x-18.5)<1)));
+ }
  wildlife=island?ferroSputnikWildlife.spawn(island):[];
  sunShadows=island&&ferroSputnikArt.ready()?ferroSputnikSun.bake(island,ferroSputnikArt.frame):null;
  const {rooms,secret}=map;
@@ -529,7 +536,8 @@ function jumpOffset(remaining){
  return 4*playerJumpHeight*phase*(1-phase);
 }
 function jumpPlayer(){
- if(state!=='playing'||p.jumpTime>0||p.fall>0)return;
+ if(state!=='playing'||p.jumpTime>0||p.fall>0||p.riftAir)return;
+ if(ferroSputnikRoutes.jump(islandRoutes,p))return;
  p.jumpBase=floor(p.x,p.y);
  p.jumpTime=playerJumpDuration;
 }
@@ -550,6 +558,7 @@ function movePlayer(dx,dy,dt){
  const jumpZ=airborne?p.jumpBase+jumpOffset(p.jumpTime):null;
  const limit=ship?(airborne?Math.max(floor(p.x,p.y)+.24,jumpZ+.10):floor(p.x,p.y)+.24):Infinity;
  move(p,dx,dy,.19,limit);
+ if(ferroSputnikRoutes.step(islandRoutes,p,dt))return;
  const ground=floor(p.x,p.y);
  p.jumpTime=Math.max(0,p.jumpTime-dt);
  if(pit(p.x,p.y)&&p.jumpTime===0){
@@ -619,7 +628,35 @@ function update(dt){
  updateNavigation();
  if(island){
   const cue=ferroSputnikOrbit.update(orbit,p,time,attempt.seconds);
-  const disturbance=ferroSputnikOrbit.disturbance(ferroSputnikOrbit.sample(orbit,time),orbit);
+  const orbital=ferroSputnikOrbit.sample(orbit,time);
+  const disturbance=ferroSputnikOrbit.disturbance(orbital,orbit);
+  for(const alien of ferroSputnikOrbit.boarding(orbit,time)){
+   if(!alien.landed||orbit.deployed.has(alien.id))continue;
+   orbit.deployed.add(alien.id);
+   foes.push({x:alien.x,y:alien.y,type:sputnikBoarder,hp:sputnikBoarder.hp,phase:alien.id*.71,reload:1.3,hit:0,dead:0,
+    wind:0,facing:alien.facing,jump:0,travel:0,run:false,nextTarget:time,nextHop:time+1.5});
+   if(settings.effects)ferroEffects.impact(alien.x,alien.y,.13,'#78ffed',true);
+  }
+  if(islandRoutes&&orbit.started!==null&&time-orbit.started>=4.75&&ferroSputnikRoutes.unlock(islandRoutes)){
+   roomDistance=null;
+   updateNavigation();
+   pickupNotice='GRAVETAT ALTERADA · RUNES O COVA';
+   pickupTime=6;
+   if(settings.effects){
+    ferroEffects.impact(14.5,3.5,.5,'#ffc475',true);
+    ferroEffects.impact(12.7,7.5,.55,'#62ffe5',true);
+   }
+  }
+  if(islandRoutes){
+   const reward=ferroSputnikRoutes.collect(islandRoutes,p);
+   if(reward){
+    owned.add(reward.gun);p.ammo+=reward.ammo;attempt.secrets++;
+    if(!chargedShot){weapon=reward.gun;heat=0}
+    pickupNotice=reward.name==='hatch'?'ESCOTILLA · LLANÇAMÍSSILS +20 MUNICIÓ':'COVA · LLANÇA DE PLASMA +30 MUNICIÓ';
+    pickupTime=5;
+    if(audio?.state==='running')ferroSputnikOrbit.cue('cache',tone,audio.currentTime,fx);
+   }
+  }
   ferroSputnikWildlife.update(wildlife,grid,p,dt,heat>0,move,disturbance);
   if(cue){
    if(audio?.state==='running')ferroSputnikOrbit.cue(cue,tone,audio.currentTime,fx);
@@ -752,7 +789,7 @@ function update(dt){
  else if(keyHeld&&Math.hypot(p.x-exitPoint[0],p.y-exitPoint[1])<.55){completeLevel()}
 }
 let depth,frameBuffer,pixels,horizon,focal;
-const qualities={fluid:416,balanced:576,detail:704};
+const qualities={fluid:416,balanced:576,detail:848,ultra:1280};
 let settings={quality:'balanced',particles:true,effects:!matchMedia('(prefers-reduced-motion: reduce)').matches,music:true,fxVolume:1};
 try{settings={...settings,...JSON.parse(localStorage.getItem('ferro-options')||'{}')}}catch{}
 settings.fxVolume=Number.isFinite(settings.fxVolume)?Math.max(0,Math.min(1,settings.fxVolume)):1;
@@ -830,6 +867,11 @@ function updateLights(core){
  if(orbitFrame?.scan)addLight(orbitFrame.targetX,orbitFrame.targetY,6,orbitFrame.scan*(.62+orbitFrame.lock*.28),ferroSputnikOrbit.aurora);
  if(orbitFrame?.distress)addLight(orbit.x,orbit.y,3.8,orbitFrame.distress*(.15+(1+Math.sin(time*5.4))*.09),ferroSputnikOrbit.amber);
  if(orbitFrame?.pulse)addLight(orbit.x,orbit.y,8,orbitFrame.pulse*.85,ferroSputnikOrbit.amber);
+ if(islandRoutes?.open){
+  addLight(16.5,2.2,4.5,.55,[78,183,209]);
+  addLight(14.5,3.5,2.8,.38,ferroSputnikOrbit.amber);
+  addLight(18.5,3.5,2.8,.38,ferroSputnikOrbit.amber);
+ }
 }
 function lit(rgb,light,index,weight=1,fog=0,haze=rgb){
  const clear=1-fog;
@@ -857,6 +899,8 @@ function world(ca,sa,plane,eye){
  const [wallInk,,roofInk]=palettes[theme];
  const outdoors=!!island;
  const tropical=outdoors&&ferroSputnikArt.materials();
+ const textureSize=ferroSputnikArt.materialSize;
+ const mip=distance=>distance<1.45?0:distance<3?1:distance<7?2:3;
  const hull=ship&&ferroScenery.shipTiles(),space=ship&&ferroScenery.space();
  const materials=ferroShip.panelMaterials;
  const skyRows=space&&Int32Array.from({length:H},(_,y)=>
@@ -892,7 +936,9 @@ function world(ca,sa,plane,eye){
    const caution=ship&&!fromPit&&!fromObject&&((ship.pits[iy]?.[ix-1]||0)|(ship.pits[iy]?.[ix+1]||0)<<1|
     (ship.pits[iy-1]?.[ix]||0)<<2|(ship.pits[iy+1]?.[ix]||0)<<3);
    const face=(horizon+(eye-z)*focal/d);
-   const roof=horizon+(eye-ceiling)*focal/d;
+   const caveCell=islandRoutes?.cavern[iy]?.[ix];
+   const roofZ=caveCell?1.56:ceiling;
+   const roof=horizon+(eye-roofZ)*focal/d;
    const top=horizon+(eye-z)*focal/near;
    const span=(from,to,planeZ,isRoof)=>{
     const start=Math.max(0,Math.ceil(from)),end=Math.min(H,Math.ceil(to));
@@ -918,13 +964,15 @@ function world(ca,sa,plane,eye){
       continue;
      }
      if(tropical){
-      const material=island.terrain[iy][ix];
-      const density=material===0?37:54;
-      const u=Math.floor(wx*density)&127,v=Math.floor(wy*density)&127;
-      const sun=(sunShadows?ferroSputnikSun.transmission(sunShadows,wx,wy):1)*
+      const material=caveCell?2:island.terrain[iy][ix];
+      const level=mip(dist),size=textureSize>>level;
+      const density=(material===0?37:54)*size/128;
+      const u=Math.floor(wx*density)&(size-1),v=Math.floor(wy*density)&(size-1);
+      const sun=(caveCell?.12:sunShadows?ferroSputnikSun.transmission(sunShadows,wx,wy):1)*
        (orbitFrame?ferroSputnikOrbit.light(orbitFrame,wx,wy,island.sun):1);
-      pixels[index]=ferroSputnikSun.surface(tropical[material][v*128+u],sun,
-       .53+island.sun.elevation,dist,haze,lighting,lightAt(wx,wy),island.sun.elevation);
+      const texel=tropical[material][level][v*size+u];
+      const paint=ferroSputnikSun.surface(texel,sun,.53+island.sun.elevation,dist,haze,lighting,lightAt(wx,wy),island.sun.elevation);
+      pixels[index]=caveCell?blendLight(paint,[15,32,40],isRoof?.57:.38):paint;
       depth[index]=dist;
       continue;
      }
@@ -953,7 +1001,7 @@ function world(ca,sa,plane,eye){
     }
    };
    span(Math.min(face,top),Math.max(face,top),z,false);
-   if(!outdoors)span(horizon+(eye-ceiling)*focal/near,roof,ceiling,true);
+   if(!outdoors||caveCell)span(horizon+(eye-roofZ)*focal/near,roof,roofZ,true);
    if(side){iy+=sy;ty+=ay}else{ix+=sx;tx+=ax}
    const cellType=grid[iy]?.[ix];
    // The wreck has collision and its own sprite, so no bank is drawn in that cell.
@@ -969,7 +1017,8 @@ function world(ca,sa,plane,eye){
     const low=solid?z:Math.min(z,next);
     const beach=island&&island.terrain[iy-sy*(side?1:0)][ix-sx*(side?0:1)]===0;
     const profile=((ix*7+iy*13)%5+5)%5;
-    const high=solid?(outdoors?z+(beach?.12:.65+profile*.055):ceiling):Math.max(z,next);
+    const caveWall=caveCell||islandRoutes?.cavern[iy]?.[ix];
+    const high=solid?(caveWall?1.72:outdoors?z+(beach?.12:.65+profile*.055):ceiling):Math.max(z,next);
     const fog=outdoors?Math.min(.62,d*.032):0;
     const style=((ix*19+iy*11)%3+3)%3;
     const u=(stripe*2+(Math.floor((edge-Math.floor(edge))*128)&1))&127;
@@ -999,10 +1048,13 @@ function world(ca,sa,plane,eye){
       continue;
      }
      if(tropical){
-      const row=(Math.floor(altitude*81)+iy*11)&127;
-      const paint=tropical[beach?0:3][row*128+u];
-      pixels[index]=ferroSputnikSun.surface(paint,faceSun,faceNormal,
+      const level=mip(d),size=textureSize>>level;
+      const row=Math.floor((altitude*81+iy*11)*size/128)&(size-1);
+      const terrainColumn=Math.min(size-1,Math.floor((edge-Math.floor(edge))*size));
+      const paint=tropical[caveWall?2:beach?0:3][level][row*size+terrainColumn];
+      const color=ferroSputnikSun.surface(paint,caveWall?.15:faceSun,faceNormal,
        d,haze,lighting,faceLight,island.sun.elevation);
+      pixels[index]=caveWall?blendLight(color,[19,37,48],.40):color;
       depth[index]=d;
       continue;
      }
@@ -1025,6 +1077,9 @@ function world(ca,sa,plane,eye){
    if(solid)break;
    near=d;
   }
+  if(islandRoutes?.open)ferroSputnikRoutes.column(islandRoutes,{
+   x:viewCamera.x,y:viewCamera.y,dx,dy,eye,focal,horizon,width:W,height:H,screenX:x,depth,pixels,time,rock:tropical?.[2]?.[2]
+  });
  }
  ctx.putImageData(frameBuffer,0,0);
 }
@@ -1204,7 +1259,7 @@ function draw(){
  world(ca,sa,plane,eye);
  if(orbitFrame){
   const projection={
-   width:W,height:H,depth,focal,effects:settings.effects,
+   width:W,height:H,depth,focal,effects:settings.effects,camera:viewCamera,
    project(x,y,altitude){
     const dx=x-viewCamera.x,dy=y-viewCamera.y,z=dx*ca+dy*sa;
     if(z<.35)return null;
@@ -1220,6 +1275,14 @@ function draw(){
  const scene=lamps.map(([x,y],i)=>({
   x,y,art:fixtureArt[arena?arenaMaterials[Math.floor(i/4)]:levels[n].theme],size:.50,altitude:ceiling-.51,fixture:true
  }));
+ if(islandRoutes?.open)scene.push(...ferroSputnikRoutes.display(islandRoutes,time,viewCamera));
+ if(orbitFrame)for(const alien of ferroSputnikOrbit.boarding(orbit,time)){
+  if(alien.landed)continue;
+  const bearing=Math.atan2(viewCamera.y-alien.y,viewCamera.x-alien.x);
+  const view=ferroEnemySprites.viewFor(alien.facing,bearing);
+  scene.push({x:alien.x,y:alien.y,altitude:alien.z,size:1.16,fixture:true,
+   foe:{type:sputnikBoarder,view},pose:'jump',frame:alien.frame});
+ }
  if(island)for(const plant of island.plants){
   const dx=plant.x-viewCamera.x,dy=plant.y-viewCamera.y;
   if(dx*dx+dy*dy>27*27||dx*ca+dy*sa<.14)continue;
@@ -1378,8 +1441,9 @@ function draw(){
  ctx.fillStyle=themeColor;ctx.textAlign='right';
  ctx.fillText(arena?ferroArena.sectors[arenaRoom].name:(levels[n].theme+1)+'.'+(levels[n].stage+1)+'  '+levels[n].name,w-10,259,210);
  ctx.textAlign='left';ctx.restore();
+ const nearRift=islandRoutes?.open&&islandRoutes.claimed.size<2&&p.x>10.5&&p.x<20&&p.y<9.2;
  const objective=arena?'ENEMICS VIUS · '+arenaAlive.reduce((total,count)=>total+count,0)+'/'+foes.length
-  :keyHeld?'VES A LA SORTIDA':keyDropped?'RECULL LA CLAU':'DERROTA EL CAP I RECULL LA CLAU';
+  :nearRift?'SALTA ENTRE LES RUNES O GIRA CAP A LA COVA':keyHeld?'VES A LA SORTIDA':keyDropped?'RECULL LA CLAU':'DERROTA EL CAP I RECULL LA CLAU';
  const objectiveWidth=Math.ceil(ctx.measureText(objective).width)+17;
  const showBoss=!arena&&!keyDropped&&Math.hypot(p.x-boss.x,p.y-boss.y)<8;
  ctx.fillStyle='#08121ddd';ctx.fillRect(8,8,Math.max(objectiveWidth,showBoss?163:0),showBoss?34:17);
@@ -1617,7 +1681,7 @@ async function startArena(e){
  }finally{
   loadingEnemyArt=false;button.disabled=start.disabled=false;
  }
- arena=true;n=0;ship=island=sunShadows=orbit=orbitFrame=null;wildlife=[];
+ arena=true;n=0;ship=island=sunShadows=orbit=orbitFrame=islandRoutes=null;wildlife=[];
  ferroEnemySprites.clear();
  const map=ferroArena.layout(mapSize,types);
  arenaCores=map.cores;
@@ -1653,7 +1717,7 @@ $('start').onclick=e=>{
  showMenuPanel();$('menuRestart').hidden=true;
  if(state==='checkpoint'){
   attempt.deaths++;
-  Object.assign(p,checkpoint,{hp:100,jumpTime:0,fall:0,safe:[checkpoint.x,checkpoint.y]});
+  Object.assign(p,checkpoint,{hp:100,jumpTime:0,fall:0,riftAir:null,safe:[checkpoint.x,checkpoint.y]});
   p.z=p.groundZ=floor(p.x,p.y);
   shots.length=playerBolts.length=blasts.length=0;
   chargedShot=null;

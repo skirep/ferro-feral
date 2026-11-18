@@ -152,7 +152,13 @@ const islandReinforcements = [
 types.push(...islandReinforcements);
 const sputnikFighters=[
  {name:'Exploradora del Manglar',atlas:'exploradora-del-manglar-hd',hd:true,torsoMotion:true,faction:'manglar',kind:'strafer',hp:44,speed:1.78,size:1.14,world:{glow:'#ffae60'}},
- {name:'Fuseller del Cràter',atlas:'fuseller-del-crater-hd',hd:true,faction:'crater',kind:'burst',hp:58,speed:1.30,size:1.22,world:{glow:'#77d6ff'}}
+ {name:'Fuseller del Cràter',atlas:'fuseller-del-crater-hd',hd:true,faction:'crater',kind:'burst',hp:58,speed:1.30,size:1.22,world:{glow:'#77d6ff'}},
+ {name:'Vera, pilot de rescat',atlas:'sputnik-pilot-hd',hd:true,torsoMotion:true,faction:'manglar',kind:'strafer',hp:53,speed:1.82,size:1.16,world:{glow:'#ffa759'}},
+ {name:'Naut, tècnic de camp',atlas:'sputnik-tech-hd',hd:true,faction:'crater',kind:'burst',hp:63,speed:1.48,size:1.17,world:{glow:'#a1ff92'}},
+ {name:'Sira, rastrejadora costanera',atlas:'sputnik-scout-hd',hd:true,torsoMotion:true,faction:'manglar',kind:'sniper',hp:49,speed:1.66,size:1.14,world:{glow:'#f4ce6c'}},
+ {name:'Boris, guarda del litoral',atlas:'sputnik-ranger-hd',hd:true,faction:'crater',kind:'burst',hp:71,speed:1.23,size:1.26,world:{glow:'#e4aa84'}},
+ {name:'Explorador de l’Òrbita',atlas:'sputnik-alien-hd',hd:true,faction:'orbit',kind:'strafer',hp:77,speed:1.92,size:1.32,world:{glow:'#6cfaf1'}}
 ].map((type,slot)=>({...type,id:types.length+slot,slot,theme:ferroSputnik.theme,special:false}));
+const sputnikBoarder=sputnikFighters.at(-1);
 types.push(...sputnikFighters);
 const typesByWorld = ferroWorldLevels.map((_, theme) => types.filter(type => type.theme===theme));

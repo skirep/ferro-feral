@@ -92,7 +92,8 @@ test('all campaign enemy and weapon sprite files exist', () => {
     read('../assets/levels/arena.js'),
     '({typesByWorld, spawns: ferroArena.layout(37, types).spawns})'
   ].join('\n'));
-  const files = new Set(['weapons.webp', 'heavy-weapons.webp', 'props/crate.webp', 'props/barrel.webp', 'sputnik/wildlife.webp']);
+  const files = new Set(['weapons.webp', 'heavy-weapons.webp', 'props/crate.webp', 'props/barrel.webp', 'sputnik/wildlife.webp', 'sputnik/terrain-hd.webp', 'sputnik/boarding-hatch.webp',
+    'sputnik/cave-mouth.webp', 'sputnik/carrier-360.webp', 'enemies/360/sputnik-alien-hd.webp']);
   for (const { theme, roster, boss } of levels) {
     for (const slot of [...roster, boss]) {
       const type = typesByWorld[theme][slot];
@@ -564,4 +565,50 @@ test('orbital motion has distinct approach, scan lock and departure poses', () =
   assert.ok(orbit.disturbance(scan,event).radius>=6);
   assert.equal(orbit.plantSway(scan,{x:scan.targetX,y:scan.targetY,kind:3,yaw:1}),0);
   assert.notEqual(orbit.plantSway(scan,{x:scan.targetX,y:scan.targetY,kind:1,yaw:1}),0);
+});
+
+test('the beam opens two optional routes with reachable steps and distinct one-time rewards', () => {
+  const { worlds, routes, size }=runInNewContext(source+'\n({worlds:ferroSputnik,routes:ferroSputnikRoutes,size:ferroShip.mapSize})');
+  const map=worlds.layout(worlds.stages[0],size);
+  const route=routes.build(map);
+  assert.equal(map.grid[3][14],1);
+  assert.equal(map.grid[3][18],1);
+  assert.equal(routes.unlock(route),true);
+  assert.equal(routes.unlock(route),false);
+  for(const x of [14,18]){
+    for(const y of [2,3,4])assert.equal(map.grid[y][x],0);
+  }
+  const p={x:11.7,y:7.5,z:0,groundZ:0,jumpTime:0,hp:100};
+  for(const platform of routes.platforms){
+    assert.equal(routes.jump(route,p),true);
+    for(let i=0;i<100&&p.riftAir;i++){
+      p.x+=Math.min(3.4/60,platform.x-p.x);
+      routes.step(route,p,1/60);
+    }
+    assert.equal(p.z,platform.z);
+    assert.equal(p.riftAir,null);
+  }
+  assert.equal(routes.collect(route,p).gun,5);
+  assert.equal(routes.collect(route,p),null);
+  Object.assign(p,{x:16.5,y:1.75,z:0});
+  assert.equal(routes.collect(route,p).gun,3);
+  assert.equal(routes.collect(route,p),null);
+});
+
+test('the carrier visibly deploys three alien actors onto walkable cells on every island stage', () => {
+  const { island, orbit, size }=runInNewContext(source+'\n({island:ferroSputnik,orbit:ferroSputnikOrbit,size:ferroShip.mapSize})');
+  for(const chapter of island.stages){
+    const layout=island.layout(chapter,size);
+    const event=orbit.create(layout.wreck,0,chapter.stage===0?{x:16.5,y:7.5,hullX:27.5,hullY:7.5}:null);
+    assert.equal(orbit.update(event,{...layout.wreck,a:0},2,3),'signal');
+    assert.equal(orbit.boarding(event,7).length,0);
+    assert.ok(orbit.boarding(event,8).some(alien=>!alien.landed&&alien.z>3));
+    const grounded=orbit.boarding(event,12);
+    assert.equal(grounded.length,3);
+    for(const alien of grounded){
+      assert.equal(alien.landed,true);
+      assert.equal(alien.z,0);
+      assert.equal(layout.grid[Math.floor(alien.y)][Math.floor(alien.x)],0);
+    }
+  }
 });
