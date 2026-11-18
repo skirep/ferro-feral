@@ -30,10 +30,10 @@ test('the game loads the campaign before parsing its entry script', () => {
   assert.doesNotThrow(() => new Script(source + '\n' + game));
 });
 
-test('all decks have walkable rooms, real windows and mandatory jump gaps', () => {
+test('all ship decks have walkable rooms, real windows and mandatory jump gaps', () => {
   const ship = runInNewContext(source + '\nferroShip');
   const directions=[[1,0],[-1,0],[0,1],[0,-1]];
-  for(const chapter of levels){
+  for(const chapter of levels.filter(level=>level.theme<5)){
     const {deck,grid,heights,gaps,pits,objects,windows}=ship.layout(chapter);
     assert.ok(gaps.length>0,chapter.name);
     assert.ok(deck.some(room=>(room.rx*2+1)*(room.ry*2+1)>=81),chapter.name);
@@ -234,11 +234,11 @@ test('a personal record prefers points, then faster time, and survives reload', 
   assert.equal(readLevelRecords(storage)[0].seconds, 40);
 });
 
-test('the campaign has five themed worlds with five authored routes apiece', () => {
-  assert.equal(worlds.length, 5);
+test('the campaign has six themed worlds with five authored routes apiece', () => {
+  assert.equal(worlds.length, 6);
   assert.equal(new Set(ferroSurfaces.map(surface => surface.material)).size, 5);
-  assert.equal(levels.length, 25);
-  assert.equal(new Set(levels.map(level => level.route.join(','))).size, 25);
+  assert.equal(levels.length, 30);
+  assert.equal(new Set(levels.map(level => level.route.join(','))).size, 30);
   for (let index = 0; index < worlds.length; index++) {
     const stages = levels.filter(level => level.theme === index);
     assert.equal(stages.length, 5);
@@ -246,7 +246,7 @@ test('the campaign has five themed worlds with five authored routes apiece', () 
   }
   const storage = memoryStorage();
   assert.equal(saveCampaignProgress(storage, 4, 4), 5);
-  assert.equal(saveCampaignProgress(storage, 24, 24), 24);
+  assert.equal(saveCampaignProgress(storage, 29, 29), 29);
 });
 
 test('each world uses a 640 by 128 PNG atlas with five tiles', () => {
@@ -363,4 +363,63 @@ test('player shots start at the animated muzzle and explosive shots join the aim
       assert.deepEqual(Array.from(boltTrailPoint(bolt)),[player.x+ca*2,player.y+sa*2,bolt.altitude]);
     }
   }
+});
+
+test('the island connects every stage from entrance to exit and the central wreck', () => {
+  const { island, size } = runInNewContext(source + '\n({island:ferroSputnik,size:ferroShip.mapSize})');
+  for (const chapter of levels.filter(level => level.theme === island.theme)) {
+    const { grid, rooms, plants, wreck, secret, terrain } = island.layout(chapter, size);
+    const start = rooms[chapter.route[0]];
+    const queue = [start];
+    const seen = new Set([start.join(',')]);
+    for (const [x,y] of queue) {
+      for (const [dx,dy] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+        const next = [x+dx,y+dy];
+        const key = next.join(',');
+        if (seen.has(key) || grid[next[1]]?.[next[0]] !== 0) continue;
+        seen.add(key);
+        queue.push(next);
+      }
+    }
+    assert.ok(chapter.route.every(room => seen.has(rooms[room].join(','))), chapter.name);
+    assert.ok(seen.has(secret.map(Math.floor).join(',')), chapter.name);
+    const [x,y] = rooms[chapter.route.at(-1)];
+    assert.ok(seen.has([x+2,y].join(',')), chapter.name);
+    assert.ok(seen.has([Math.floor(wreck.x)-1,Math.floor(wreck.y)].join(',')),chapter.name);
+    assert.equal(grid[Math.floor(wreck.y)][Math.floor(wreck.x)],2,chapter.name);
+    assert.equal(terrain[rooms[10][1]][rooms[10][0]],2,chapter.name);
+    assert.ok([0,1,2,3,4].every(kind => plants.some(plant => plant.kind===kind)),chapter.name);
+  }
+});
+
+test('island fighters select visible rivals ahead of the player and can be hit by enemy shots', () => {
+  const { island, arena, fighters } = runInNewContext(source + [
+    read('../assets/enemies/catalog.js'),
+    read('../assets/levels/arena.js'),
+    '({island:ferroSputnik,arena:ferroArena,fighters:sputnikFighters})'
+  ].join('\n'));
+  const scout = { x:0,y:0,hp:44,type:fighters[0] };
+  const ally = { x:1,y:0,hp:44,type:fighters[0] };
+  const rival = { x:4,y:0,hp:58,type:fighters[1] };
+  const player = { x:2,y:0,hp:100 };
+  const foes = [scout,ally,rival];
+  assert.equal(arena.target(scout,player,foes,()=>true,island.opponents),rival);
+  assert.equal(arena.target(scout,player,foes,(_,target)=>target!==rival,island.opponents),player);
+  assert.equal(arena.shotTarget({x:4,y:0,owner:scout,altitude:.48},foes,()=>.48),rival);
+  assert.equal(arena.shotTarget({x:0,y:0,owner:scout,altitude:.48},foes,()=>.48),null);
+});
+
+test('unlocking island stages preserves the five existing worlds', () => {
+  const { readWorldProgress, completeWorldStage, levelAvailable } = runInNewContext(
+    source + '\n({readWorldProgress,completeWorldStage,levelAvailable})'
+  );
+  const storage = memoryStorage();
+  saveCampaignProgress(storage, 23, 23);
+  const previous = readWorldProgress(storage);
+  assert.ok(levelAvailable(previous,25));
+  assert.ok(!levelAvailable(previous,26));
+  const next = completeWorldStage(storage,previous,25);
+  assert.ok(levelAvailable(next,26));
+  assert.deepEqual([...next.slice(0,5)],[...previous.slice(0,5)]);
+  assert.deepEqual(readWorldProgress(storage),next);
 });

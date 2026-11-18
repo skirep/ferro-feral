@@ -3,10 +3,11 @@ const worlds = [
  {"name":"Neon Apocalypse","shape":"block","corridor":3,"root":46.25,"bpm":144},
  {"name":"El Regne dels Oblidats","shape":"octagon","corridor":1,"root":36.71,"bpm":112},
  {"name":"Biohazard Zero","shape":"cross","corridor":1,"root":43.65,"bpm":132},
- {"name":"The Abyss","shape":"diamond","corridor":1,"root":32.7,"bpm":156}
+ {"name":"The Abyss","shape":"diamond","corridor":1,"root":32.7,"bpm":156},
+ {"name":"L’Illa de l’Sputnik","root":43.65,"bpm":118}
 ];
 const levels = ferroWorldLevels.flatMap((stages,theme)=>
- stages.map((level,stage)=>({...level,name:ferroShip.names[theme][stage],theme,stage}))
+ stages.map((level,stage)=>({...level,name:ferroShip.names[theme]?.[stage]??level.name,theme,stage}))
 );
 
 const campaign = {
@@ -60,7 +61,7 @@ function readWorldProgress(storage){
  const legacy=readCampaignProgress(storage);
  return worlds.map((_,world)=>Math.max(
   Number.isInteger(saved?.[world])?Math.min(4,saved[world]):0,
-  Math.max(0,Math.min(4,legacy-world*5))
+  world<ferroSputnik.theme?Math.max(0,Math.min(4,legacy-world*5)):0
  ));
 }
 function saveWorldProgress(storage,progress){

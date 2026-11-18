@@ -46,10 +46,10 @@ const ferroArena=(()=>{
   };
  }
 
- function target(enemy,player,foes,canSee){
+ function target(enemy,player,foes,canSee,isRival){
   let closest=null, limit=121;
   for(const candidate of foes){
-   if(candidate===enemy||candidate.hp<=0)continue;
+   if(candidate===enemy||candidate.hp<=0||(isRival&&!isRival(enemy,candidate)))continue;
    const squared=(candidate.x-enemy.x)**2+(candidate.y-enemy.y)**2;
    if(squared>=limit||!canSee(enemy,candidate,Math.sqrt(squared)))continue;
    closest=candidate;limit=squared;

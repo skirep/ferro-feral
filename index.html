@@ -70,14 +70,16 @@
 <script src="./assets/textures/world-materials.js?v=arena-surge"></script>
 <script src="./assets/textures/load-textures.js?v=arena-surge"></script>
 <script src="./assets/levels/ship.js"></script>
-<script src="./campaign.js?v=ship-decks"></script>
+<script src="./assets/levels/illa-sputnik.js"></script>
+<script src="./assets/sputnik-art.js"></script>
+<script src="./campaign.js?v=sputnik"></script>
 <script src="./account.js"></script>
 <script src="./supabase-config.js"></script>
-<script src="./assets/enemies/catalog.js?v=neon-360"></script>
+<script src="./assets/enemies/catalog.js?v=sputnik"></script>
 <script src="./assets/enemies/sprites.js?v=neon-360"></script>
 <script src="./assets/combat.js?v=muzzle-origin"></script>
 <script src="./assets/props.js?v=props-360"></script>
-<script src="./assets/levels/arena.js?v=arena-surge"></script>
+<script src="./assets/levels/arena.js?v=sputnik"></script>
 <script src="./assets/music.js"></script>
 <script src="./assets/enemies/bestiary.js?v=neon-360"></script>
 <script src="./assets/effects.js?v=muzzle-origin"></script>
@@ -97,7 +99,7 @@ const owned=new Set([0]);
 const blood=[];
 const bloodColors=['#6a101d','#a0192b','#db2837','#ff514a'];
 let state='menu',time=0,elapsed=0,roomDistance,arena=false;
-let arenaCores=[],skyHeading=0,ship=null;
+let arenaCores=[],skyHeading=0,ship=null,island=null;
 let arenaRoom,arenaAlive,arenaPulses,arenaDefeats;
 let props=[],playerBolts=[],blasts=[],chargedShot=null;
 const propFragments=[];
@@ -113,21 +115,32 @@ function level(index){
  attempt={shots:0,hits:0,seconds:0,damageTaken:0,secrets:0,deaths:0};
  checkpoint=null;
  const chapter=levels[n];
- ship=ferroShip.layout(chapter);
- const {rooms,secret}=ship;
- grid=ship.grid;heights=ship.heights;ceiling=2.92;
- ferroScenery.prepareSpace(()=>{redraw=true});
+ island=chapter.theme===ferroSputnik.theme?ferroSputnik.layout(chapter,mapSize):null;
+ ship=island?null:ferroShip.layout(chapter);
+ const map=island??ship;
+ const {rooms,secret}=map;
+ grid=map.grid;heights=map.heights;ceiling=island?8:2.92;
+ if(ship)ferroScenery.prepareSpace(()=>{redraw=true});
  const spawn=(x,y,slot,i)=>{
   const type=typesByWorld[chapter.theme][slot];
   return {x:x+.5,y:y+.5,type,hp:type.hp,phase:i*.71,reload:1+i*.1,hit:0,dead:0,wind:0,facing:i*1.7,jump:0,travel:0,run:false};
  };
  foes=chapter.roster.map((id,i)=>{
   const [x,y]=rooms[chapter.route[2+Math.floor(i*(chapter.route.length-4)/Math.max(1,chapter.roster.length-1))]];
-  return spawn(x,y,id,i);
+  const enemy=spawn(x,y,id,i);
+  if(island){
+   const offset=i%2?1.3:-1.3;
+   enemy.x+=offset;
+   enemy.y+=(i%3-1)*.88;
+   enemy.facing=offset>0?Math.PI:0;
+   enemy.nextTarget=time+i*.02;
+  }
+  return enemy;
  });
  const [bx,by]=rooms[chapter.route.at(-1)];
  boss=spawn(bx,by,chapter.boss,foes.length);
  boss.homeX=boss.x;boss.homeY=boss.y;boss.maxHp=boss.hp=chapter.bossHealth;
+ if(island)boss.nextTarget=time;
  foes.push(boss);keyHeld=keyDropped=false;
  const [sx,sy]=rooms[chapter.route[0]],[nx,ny]=rooms[chapter.route[1]];
  skyHeading=Math.atan2(ny-sy,nx-sx);
@@ -162,7 +175,7 @@ function level(index){
  weaponShown=undefined;
  pickupTime=0;pickupNotice='';
  staticLights=null;
- lamps=chapter.route.filter((_,i)=>i%2===0||i===chapter.route.length-1).map(id=>rooms[id].map(v=>v+.5));
+ lamps=island?[]:chapter.route.filter((_,i)=>i%2===0||i===chapter.route.length-1).map(id=>rooms[id].map(v=>v+.5));
  roomDistance=null;
 }
 const wall=(x,y)=>grid[Math.floor(y)]?.[Math.floor(x)]!==0;
@@ -507,7 +520,7 @@ function enemyCanSee(enemy,target,distance){
  return distance>.001&&ray(enemy.x,enemy.y,(target.x-enemy.x)/distance,(target.y-enemy.y)/distance,
   enemyAltitude(enemy),enemyAltitude(target),distance);
 }
-function hitArenaTarget(target,source,amount){
+function hitEnemyTarget(target,source,amount){
  if(target===p){damage(amount);return}
  target.hp-=amount;target.hit=hitDuration;
  sprayBlood(target,amount,source);
@@ -556,15 +569,17 @@ function update(dt){
  if(forward||strafe)elapsed+=dt*10;
  heat-=dt;flash-=dt;hurt-=dt;if(keys.has(' ')||firePointer!==null||padFire)fire();
  updateNavigation();
+ const infighting=arena||!!island;
  for(const e of foes){
   e.hit-=dt;if(e.hp<=0){e.dead+=dt;continue}
-  if(arena&&e.wind<=0&&time>=e.nextTarget){
-   e.target=ferroArena.target(e,p,foes,enemyCanSee);
+  if(island&&Math.hypot(e.x-p.x,e.y-p.y)>16)continue;
+  if(infighting&&e.wind<=0&&time>=e.nextTarget){
+   e.target=ferroArena.target(e,p,foes,enemyCanSee,island?ferroSputnik.opponents:undefined);
    e.nextTarget=time+.32;
   }
-  const target=arena?e.target:p;
+  const target=infighting?e.target:p;
   const dx=target?target.x-e.x:0,dy=target?target.y-e.y:0,d=Math.hypot(dx,dy)||.001,kind=e.type.kind;
-  const see=!!target&&target.hp>0&&(arena?enemyCanSee(e,target,d):ray(e.x,e.y,dx/d,dy/d,floor(e.x,e.y)+.48,p.z+.44,d));
+  const see=!!target&&target.hp>0&&(infighting?enemyCanSee(e,target,d):ray(e.x,e.y,dx/d,dy/d,floor(e.x,e.y)+.48,p.z+.44,d));
   const melee=kind==='runner'||kind==='charger'||kind==='ghost';
   const range=e===boss?6.5:melee?2.2:kind==='sniper'?11:6;
   e.jump=Math.max(0,e.jump-dt);
@@ -577,13 +592,14 @@ function update(dt){
    e.wind=attackDuration;e.reload=kind==='sniper'?2.9:kind==='burst'?1.15:1.75;
   }
   if(wasWind>attackDuration*.48&&e.wind<=attackDuration*.48&&see&&d<range){
+   if(island&&settings.effects)ferroEffects.impact(e.x+dx/d*.35,e.y+dy/d*.35,enemyAltitude(e),e.type.world.glow);
    if(melee&&d<.76){
-    if(arena)hitArenaTarget(target,e,kind==='charger'?21:12);
+    if(infighting)hitEnemyTarget(target,e,kind==='charger'?21:12);
     else damage(kind==='charger'?21:12);
    }
    else{
     const offsets=e===boss?(levels[n].stage===4?[-.40,-.20,0,.20,.40]:[-.20,0,.20]):kind==='burst'?[-.15,0,.15]:[0];
-    for(const offset of offsets)shots.push({x:e.x,y:e.y,a:aim+offset,altitude:floor(e.x,e.y)+.48,color:e.type.world.glow,speed:kind==='sniper'?8:3.3,slope:((arena?enemyAltitude(target):p.z+.44)-floor(e.x,e.y)-.48)/d,ttl:4,owner:arena?e:null});
+    for(const offset of offsets)shots.push({x:e.x,y:e.y,a:aim+offset,altitude:floor(e.x,e.y)+.48,color:e.type.world.glow,speed:kind==='sniper'?8:3.3,slope:((infighting?enemyAltitude(target):p.z+.44)-floor(e.x,e.y)-.48)/d,ttl:4,owner:infighting?e:null});
    }
   }
   const x=Math.floor(e.x),y=Math.floor(e.y);
@@ -627,10 +643,10 @@ function update(dt){
     s.altitude,Math.cos(s.a),Math.sin(s.a),dt*s.speed);
    if(hit){impactProp(hit.prop,12,Math.cos(s.a),Math.sin(s.a),s.color);s.ttl=0}
   }
-  if(arena&&s.ttl>0){
+  if(infighting&&s.ttl>0){
    const victim=ferroArena.shotTarget(s,foes,enemyAltitude);
    if(victim){
-    hitArenaTarget(victim,s.owner,12);s.ttl=0;
+    hitEnemyTarget(victim,s.owner,island?8:12);s.ttl=0;
     if(settings.effects&&Math.hypot(p.x-s.x,p.y-s.y)<11)ferroEffects.impact(s.x,s.y,s.altitude,s.color);
    }
   }
@@ -762,14 +778,15 @@ function blendLight(pixel,color,amount){
  return (255<<24)|(b<<16)|(g<<8)|r;
 }
 function world(ca,sa,plane,eye){
- const chapter=levels[n],theme=chapter.theme;
+ const theme=island?0:levels[n].theme;
  const [wallInk,,roofInk]=palettes[theme];
- const outdoors=!arena&&!ship&&chapter.outdoors;
+ const outdoors=!!island;
+ const tropical=outdoors&&ferroSputnikArt.materials();
  const hull=ship&&ferroScenery.shipTiles(),space=ship&&ferroScenery.space();
  const materials=ferroShip.panelMaterials;
  const skyRows=space&&Int32Array.from({length:H},(_,y)=>
   Math.floor((.50-Math.atan((horizon-y)/focal)/Math.PI)*space.height)*space.width);
- const haze=ferroScenery.haze(theme);
+ const haze=island?[113,151,131]:ferroScenery.haze(theme);
  const timeRipple=settings.effects?Math.floor(time*13):0;
  depth.fill(Infinity);
  pixels.fill(shade(outdoors?ferroSurfaces[theme].sky:roofInk,outdoors?1:.24));
@@ -778,7 +795,7 @@ function world(ca,sa,plane,eye){
    const intensity=.40+Math.min(1,y/Math.max(1,horizon))*.65;
    pixels.fill(shade(ferroSurfaces[theme].sky,intensity),y*W,(y+1)*W);
   }
-  ferroScenery.sky(pixels,W,H,horizon,p.a-skyHeading,plane,theme);
+  ferroSputnikArt.sky(pixels,W,H,horizon,plane,p.a);
  }
  for(let x=0;x<W;x++){
   const u=(2*x/W-1)*plane,dx=ca-sa*u,dy=sa+ca*u;
@@ -820,6 +837,15 @@ function world(ca,sa,plane,eye){
       pixels[index]=paint;depth[index]=dist;
       continue;
      }
+     if(tropical){
+      const material=island.terrain[iy][ix];
+      const density=material===0?37:54;
+      const u=Math.floor(wx*density)&127,v=Math.floor(wy*density)&127;
+      const light=.74+.24/(1+dist*.09);
+      pixels[index]=litWall(tropical[material][v*128+u],light,lightAt(wx,wy),Math.min(.58,dist*.026),haze);
+      depth[index]=dist;
+      continue;
+     }
      const j=Math.floor(wx*32),k=Math.floor(wy*32);
      const room=arena?ferroArena.roomAt(wx,wy):0;
      const material=arena?arenaMaterials[room]:theme;
@@ -840,9 +866,6 @@ function world(ca,sa,plane,eye){
        paint=blendLight(paint,ferroEffects.roomLight[room],(1-spread/.63)*ripple);
       }
      }
-     if(outdoors&&!isRoof&&theme===0&&((k&63)<5||(j&127)<3)){
-      paint=blendLight(paint,[105,174,193],.12+Math.min(.30,dist*.022));
-     }
      pixels[index]=paint;
      depth[index]=dist;
     }
@@ -850,7 +873,9 @@ function world(ca,sa,plane,eye){
    span(Math.min(face,top),Math.max(face,top),z,false);
    if(!outdoors)span(horizon+(eye-ceiling)*focal/near,roof,ceiling,true);
    if(side){iy+=sy;ty+=ay}else{ix+=sx;tx+=ax}
-   const solid=grid[iy]?.[ix]!==0,next=heights[iy]?.[ix]??z;
+   const cellType=grid[iy]?.[ix];
+   // The wreck has collision and its own sprite, so no bank is drawn in that cell.
+   const solid=cellType!==0&&cellType!==2,next=heights[iy]?.[ix]??z;
    const faceBit=side?(sy>0?4:8):(sx>0?1:2);
    const viewport=solid&&(ship?.windows[iy]?.[ix]&faceBit);
    if(solid||next!==z){
@@ -860,11 +885,9 @@ function world(ca,sa,plane,eye){
     const material=sector?.material??theme;
     const lamp=palettes[material][3];
     const low=solid?z:Math.min(z,next);
-    // Exterior parapets leave the skyline visible, with taller silhouettes at posts.
-    const post=solid&&outdoors&&(stripe<7||stripe>57);
+    const beach=island&&island.terrain[iy-sy*(side?1:0)][ix-sx*(side?0:1)]===0;
     const profile=((ix*7+iy*13)%5+5)%5;
-    const parapet=theme===0?1.03:1.20;
-    const high=solid?(outdoors?z+parapet+profile*.12+(post?.48:0):ceiling):Math.max(z,next);
+    const high=solid?(outdoors?z+(beach?.12:.65+profile*.055):ceiling):Math.max(z,next);
     const fog=outdoors?Math.min(.62,d*.032):0;
     const style=((ix*19+iy*11)%3+3)%3;
     const u=(stripe*2+(Math.floor((edge-Math.floor(edge))*128)&1))&127;
@@ -889,9 +912,16 @@ function world(ca,sa,plane,eye){
       depth[index]=d;
       continue;
      }
+     if(tropical){
+      const row=(Math.floor(altitude*81)+iy*11)&127;
+      const paint=tropical[beach?0:3][row*128+u];
+      pixels[index]=litWall(paint,.69+illumination*.19,faceLight,fog,haze);
+      depth[index]=d;
+      continue;
+     }
      if(wallTile){
       const row=Math.max(0,Math.min(wallTileSize-1,Math.floor((high-altitude)*wallTileSize/(high-low))));
-      const light=ship?(overPit?.44:.37+illumination*.72):illumination*(post?.79:1);
+      const light=ship?(overPit?.44:.37+illumination*.72):illumination;
       const paint=litWall(wallTile[row*wallTileSize+column],light,faceLight,fog,haze);
       pixels[index]=rim?blendLight(paint,haze,.45):paint;
       depth[index]=d;
@@ -900,7 +930,7 @@ function world(ca,sa,plane,eye){
      const row=solid&&material===0?Math.min(127,Math.floor((high-altitude)*128/(high-low))):Math.floor(altitude*96)&127;
      const luminous=solid&&(arena||theme===1||theme===4)&&(row&63)>=41&&(row&63)<=43&&u>21&&u<106&&style===2;
      const texture=solid?surfaceTextures[material][style][row*128+u]:((u+row*2)&31)<12?lamp:wallInk;
-     const paint=lit(luminous?lamp:texture,illumination*(post?.73:luminous?1.66:1),faceLight,.95,fog,haze);
+     const paint=lit(luminous?lamp:texture,illumination*(luminous?1.66:1),faceLight,.95,fog,haze);
      pixels[index]=rim?blendLight(paint,haze,.45):paint;
      depth[index]=d;
     }
@@ -929,10 +959,11 @@ const fixtureArt=glowColors.map(([r,g,b])=>{
  return c;
 });
 function drawAtmosphere(ca,sa,plane,eye,core){
- const sparks=ferroSurfaces[levels[n].theme].spark;
+ const sparks=island?'#edda9a':ferroSurfaces[levels[n].theme].spark;
  const count=settings.particles&&!arena?(core?77:43):0;
+ const anchors=island?island.airAnchors:lamps;
  for(let i=0;i<count;i++){
-  const anchor=i<43?lamps[i%lamps.length]:[core.x,core.y];
+  const anchor=i<43?anchors[i%anchors.length]:[core.x,core.y];
   const cycle=(i*.6180339+time*(.13+i%5*.024))%1;
   const drift=(i*2.39996)+cycle*1.4;
   const radius=(.18+cycle)*(.65+(i%9)*.155);
@@ -953,7 +984,7 @@ function drawAtmosphere(ca,sa,plane,eye,core){
  }
  ctx.globalAlpha=1;
  const vignette=ctx.createRadialGradient(W/2,H*.49,H*.22,W/2,H*.49,W*.55);
- vignette.addColorStop(0,'#0000');vignette.addColorStop(1,arena?'#09031084':'#090310b5');
+ vignette.addColorStop(0,'#0000');vignette.addColorStop(1,island?'#11231b56':arena?'#09031084':'#090310b5');
  ctx.fillStyle=vignette;ctx.fillRect(0,0,W,H);
 }
 function drawArenaMap(){
@@ -1014,6 +1045,23 @@ function drawContactShadows(ca,sa,plane,eye){
  for(const prop of props)if(prop.hp>0)shadow(prop,prop.radius,.56,prop.z);
  ctx.globalAlpha=1;
 }
+function drawWreckSmoke(ca,sa,plane,eye){
+ const {x,y}=island.wreck;
+ ctx.fillStyle='#7d8775';
+ for(let i=0;i<21;i++){
+  const age=(time*.34+i/21)%1;
+  const dx=x-p.x+age*.64,dy=y-p.y+age*.42+Math.sin(i*4.2+time)*age*.21;
+  const z=dx*ca+dy*sa;
+  if(z<.55||z>25)continue;
+  const sx=Math.floor(W/2+W/2*(-dx*sa+dy*ca)/(z*plane));
+  const sy=Math.floor(horizon+(eye-.73-age*3.3)*focal/z);
+  if(sx<0||sx>=W||sy<0||sy>=H||depth[sy*W+sx]<z)continue;
+  const radius=Math.min(19,1+focal/z*(.075+age*.29));
+  ctx.globalAlpha=(1-age)*.18;
+  ctx.fillRect(Math.floor(sx-radius),Math.floor(sy-radius),Math.ceil(2*radius),Math.ceil(2*radius));
+ }
+ ctx.globalAlpha=1;
+}
 function currentViewmodel(){
  if(weaponShown!==weapon){weaponShown=weapon;weaponSince=time}
  const heavy=weapon>=5&&heavyWeaponReady;
@@ -1062,6 +1110,12 @@ function draw(){
  const scene=lamps.map(([x,y],i)=>({
   x,y,art:fixtureArt[arena?arenaMaterials[Math.floor(i/4)]:levels[n].theme],size:.50,altitude:ceiling-.51,fixture:true
  }));
+ if(island)for(const plant of island.plants){
+  const dx=plant.x-p.x,dy=plant.y-p.y;
+  if(dx*dx+dy*dy>27*27||dx*ca+dy*sa<.14)continue;
+  const frame=ferroSputnikArt.frame(plant,Math.atan2(-dy,-dx));
+  if(frame)scene.push({...plant,...frame,altitude:0,fixture:true});
+ }
  if(arena)arenaCores.forEach(([x,y],room)=>{
   if(settings.quality!=='fluid'){
    const beam=ferroScenery.beam(room,ferroEffects.roomLight[room]);
@@ -1173,8 +1227,8 @@ function draw(){
   if(arena)ferroEffects.arena(ctx,project,arenaCores,settings.effects?arenaPulses:[2,2,2,2],time,
    settings.particles,settings.quality==='detail',p);
  }
- if(!arena&&!ship&&levels[n].outdoors&&settings.particles&&settings.effects){
-  ferroScenery.weather(ctx,W,H,depth,time,p.a,levels[n].theme);
+ if(island&&settings.particles&&settings.effects){
+  drawWreckSmoke(ca,sa,plane,eye);
  }
  drawAtmosphere(ca,sa,plane,eye,core);
  ctx.save();
@@ -1182,7 +1236,7 @@ function draw(){
  drawWeapon();
  if(hurt>0){ctx.fillStyle='rgba(255,36,40,'+hurt*.7+')';ctx.fillRect(0,0,480,270)}
  ctx.fillStyle='#fff0d0';ctx.fillRect(240-1,135-1,2,2);
- const themeColor=arena?ferroArena.sectors[arenaRoom].color:ferroSurfaces[levels[n].theme].spark;
+ const themeColor=island?'#f4dfa5':arena?ferroArena.sectors[arenaRoom].color:ferroSurfaces[levels[n].theme].spark;
  ctx.fillStyle='#08121de8';ctx.fillRect(0,245,480,25);
  ctx.globalAlpha=.40;ctx.fillStyle=themeColor;ctx.fillRect(0,245,480,1);ctx.globalAlpha=1;
  ctx.font='bold 10px monospace';ctx.fillStyle='#ffab86';ctx.fillText('VIDA '+p.hp,10,257);
@@ -1428,7 +1482,7 @@ async function startArena(e){
  }finally{
   loadingEnemyArt=false;button.disabled=start.disabled=false;
  }
- arena=true;n=0;ship=null;
+ arena=true;n=0;ship=island=null;
  ferroEnemySprites.clear();
  const map=ferroArena.layout(mapSize,types);
  arenaCores=map.cores;
@@ -1476,12 +1530,13 @@ $('start').onclick=e=>{
   const selected=levelAvailable(worldProgress,requested)?requested:worldProgress[0];
   const theme=levels[selected].theme;
   const slots=levelEnemySlots(selected);
-  if(!ferroEnemySprites.ready(theme,slots)){
+  const tropical=theme===ferroSputnik.theme;
+  if(!ferroEnemySprites.ready(theme,slots)||(tropical&&!ferroSputnikArt.ready())){
    const start=$('start'),label=start.textContent;
    loadingEnemyArt=true;
    start.disabled=true;
    start.textContent='Carregant els sprites…';
-   ferroEnemySprites.prepare(theme,slots).then(()=>{
+   Promise.all([ferroEnemySprites.prepare(theme,slots),tropical?ferroSputnikArt.prepare():null]).then(()=>{
     loadingEnemyArt=false;
     start.disabled=false;
     start.textContent=label;
@@ -1495,8 +1550,9 @@ $('start').onclick=e=>{
    return;
   }
   owned.clear();
-  for(let id=0;id<=selected&&id<5;id++)owned.add(id);
-  for(const id of specialArsenal(selected))owned.add(id);
+  const initialStage=tropical?levels[selected].stage:selected;
+  for(let id=0;id<5&&id<=initialStage;id++)owned.add(id);
+  if(!tropical)for(const id of specialArsenal(selected))owned.add(id);
   level(selected);
  }
  enterPlay(e);
