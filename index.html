@@ -74,8 +74,8 @@
 <script src="./supabase-config.js"></script>
 <script src="./assets/enemies/catalog.js?v=neon-360"></script>
 <script src="./assets/enemies/sprites.js?v=neon-360"></script>
-<script src="./assets/combat.js?v=arena-surge"></script>
-<script src="./assets/props.js"></script>
+<script src="./assets/combat.js?v=compact-viewmodels"></script>
+<script src="./assets/props.js?v=textured-props"></script>
 <script src="./assets/levels/arena.js?v=arena-surge"></script>
 <script src="./assets/music.js"></script>
 <script src="./assets/enemies/bestiary.js?v=neon-360"></script>
@@ -959,17 +959,19 @@ keyInk.clearRect(15,16,5,6);keyInk.fillStyle='#fff5ad';keyInk.fillRect(11,12,13,
 function drawContactShadows(ca,sa,plane,eye){
  if(settings.quality==='fluid')return;
  ctx.fillStyle='#040815';
- for(const enemy of foes){
-  const dx=enemy.x-p.x,dy=enemy.y-p.y,z=dx*ca+dy*sa;
-  if(z<.32||z>11)continue;
+ function shadow(object,width,opacity,lift=0){
+  const dx=object.x-p.x,dy=object.y-p.y,z=dx*ca+dy*sa;
+  if(z<.32||z>11)return;
   const x=W/2+W/2*(-dx*sa+dy*ca)/(z*plane);
-  const y=horizon+(eye-floor(enemy.x,enemy.y))*focal/z;
+  const y=horizon+(eye-floor(object.x,object.y))*focal/z;
   const ix=Math.floor(x),iy=Math.floor(y);
-  if(ix<0||ix>=W||iy<0||iy>=H||Math.abs(depth[iy*W+ix]-z)>.40)continue;
-  const radius=Math.min(W/11,.27*focal*enemy.type.size/z);
-  ctx.globalAlpha=(1-z/12)*.32;
+  if(ix<0||ix>=W||iy<0||iy>=H||Math.abs(depth[iy*W+ix]-z)>.40)return;
+  const radius=Math.min(W/11,width*focal/z);
+  ctx.globalAlpha=(1-z/12)*opacity/(1+lift*3);
   ctx.beginPath();ctx.ellipse(x,y,radius,Math.max(1,radius*.22),0,0,Math.PI*2);ctx.fill();
  }
+ for(const enemy of foes)shadow(enemy,.27*enemy.type.size,.32);
+ for(const prop of props)if(prop.hp>0)shadow(prop,prop.radius,.56,prop.z);
  ctx.globalAlpha=1;
 }
 function drawWeapon(){
@@ -990,11 +992,11 @@ function drawWeapon(){
   ctx.filter='none';
   const glow=weapon===6?(charge>0?.28+charge*.65:.20+Math.sin(time*3)*.10):.20+Math.sin(time*4.4)*.12;
   const center=-height*(weapon===6?.49:.67);
-  const halo=ctx.createRadialGradient(0,center,1,0,center,weapon===6?31:14);
+  const halo=ctx.createRadialGradient(0,center,1,0,center,weapon===6?19:9);
   halo.addColorStop(0,gun.color);halo.addColorStop(1,'transparent');
   ctx.globalAlpha=glow;ctx.fillStyle=halo;ctx.fillRect(-32,center-32,64,64);ctx.globalAlpha=1;
   if(firing&&flash>0&&settings.effects){
-   const tip=-height+.08*height, size=flash/.105*(weapon===6?41:29);
+   const tip=-height+.08*height, size=flash/.105*(weapon===6?27:20);
    const bloom=ctx.createRadialGradient(0,tip,1,0,tip,Math.max(2,size));
    bloom.addColorStop(0,'#fff5d5');bloom.addColorStop(.23,gun.color);bloom.addColorStop(1,'transparent');
    ctx.fillStyle=bloom;ctx.fillRect(-size,tip-size,size*2,size*2);
@@ -1034,7 +1036,7 @@ function draw(){
  }
  for(const drop of blood)scene.push({x:drop.x,y:drop.y,altitude:drop.altitude,size:drop.size,color:drop.color,blood:true});
  for(const prop of props)if(prop.hp>0){
-  scene.push({...prop,art:ferroProps.art(prop.kind),altitude:prop.z,size:prop.height});
+  scene.push({...prop,art:ferroProps.art(prop.kind),altitude:prop.z,size:prop.height,physical:true});
  }
  if(!settings.effects)for(const s of shots)scene.push({...s,size:.14,offset:.50});
  if(!settings.effects)for(const bolt of playerBolts){
@@ -1064,7 +1066,8 @@ function draw(){
   if(hasArt&&!o.fixture){
    const li=lightAt(o.x,o.y);
    const intensity=(lighting[li]+lighting[li+1]+lighting[li+2])/410;
-   const boost=o.hit?1.32:1.11+Math.min(.37,intensity)+(o.foe===boss?reactorPulse()*.18:0);
+   const boost=o.physical?.92+Math.min(.26,intensity):o.hit?1.32:
+    1.11+Math.min(.37,intensity)+(o.foe===boss?reactorPulse()*.18:0);
    ctx.filter='brightness('+boost.toFixed(2)+')';
   }
   for(let x=Math.max(left,0);x<Math.min(W,left+w);x++){
@@ -1359,13 +1362,14 @@ async function startArena(e){
  loadingEnemyArt=true;
  const button=$('menuArena'),start=$('start');
  button.disabled=start.disabled=true;
- $('intro').textContent='Carregant els enemics de l’arena…';
+ $('intro').textContent='Carregant l’Arena…';
  ferroEnemySprites.retainWorlds(true);
  try{
+  await ferroProps.prepare();
   for(let theme=0;theme<worlds.length;theme++)await ferroEnemySprites.prepare(theme);
  }catch{
   if(!arena)ferroEnemySprites.retainWorlds(false);
-  $('intro').textContent='No s’han pogut carregar els enemics de l’arena. Torna a provar-ho.';
+  $('intro').textContent='No s’ha pogut carregar l’Arena. Torna a provar-ho.';
   return;
  }finally{
   loadingEnemyArt=false;button.disabled=start.disabled=false;

@@ -52,7 +52,7 @@ test('all campaign enemy and weapon sprite files exist', () => {
     read('../assets/levels/arena.js'),
     '({typesByWorld, spawns: ferroArena.layout(37, types).spawns})'
   ].join('\n'));
-  const files = new Set(['weapons.webp', 'heavy-weapons.webp']);
+  const files = new Set(['weapons.webp', 'heavy-weapons.webp', 'props/crate.webp', 'props/barrel.webp']);
   for (const { theme, roster, boss } of levels) {
     for (const slot of [...roster, boss]) {
       const type = typesByWorld[theme][slot];
@@ -264,8 +264,10 @@ test('the seven viewmodels animate at rest and the two charged weapons keep thei
     read('../assets/combat.js') + '\n({guns,weaponMotion,blastDamage,specialArsenal})'
   );
   for(let id=0;id<guns.length;id++){
-    assert.notDeepEqual(weaponMotion(id,1,0,1,0,true),weaponMotion(id,1.4,0,1,0,true));
-    assert.ok(weaponMotion(id,1,0,1,.105,true).y>weaponMotion(id,1,0,1,0,true).y);
+    const resting=weaponMotion(id,1,0,1,0,true);
+    assert.ok(resting.width<=480*.30);
+    assert.notDeepEqual(resting,weaponMotion(id,1.4,0,1,0,true));
+    assert.ok(weaponMotion(id,1,0,1,.105,true).y>resting.y);
   }
   assert.ok(guns[5].projectile.speed>guns[6].projectile.speed);
   assert.ok(guns[6].projectile.radius>guns[5].projectile.radius);

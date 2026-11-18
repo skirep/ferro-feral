@@ -4,6 +4,7 @@ const ferroProps=(()=>{
   barrel:{radius:.25,height:.68,mass:1.7,hp:43}
  };
  const sprites=new Map();
+ let loadTask=null;
 
  function spawn(cores){
   return cores.flatMap(([x,y],room)=>[
@@ -96,40 +97,26 @@ const ferroProps=(()=>{
   return hit;
  }
 
- function art(kind){
-  if(sprites.has(kind))return sprites.get(kind);
-  const canvas=document.createElement('canvas');
-  canvas.width=canvas.height=80;
-  const ctx=canvas.getContext('2d');
-  const poly=(color,points)=>{
-   ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(...points[0]);
-   for(const point of points.slice(1))ctx.lineTo(...point);
-   ctx.closePath();ctx.fill();
-  };
-  if(kind==='crate'){
-   poly('#423e47',[[7,21],[55,16],[72,26],[72,69],[55,79],[7,73]]);
-   poly('#aa7650',[[7,21],[55,16],[72,26],[54,31]]);
-   poly('#594e57',[[54,30],[72,26],[72,69],[55,79]]);
-   poly('#855d40',[[11,28],[51,33],[51,74],[11,69]]);
-   for(let i=0;i<4;i++)poly(i%2?'#6c4737':'#ad7e51',[[14,33+i*8],[48,37+i*8],[48,43+i*8],[14,40+i*8]]);
-   poly('#bd9362',[[11,64],[45,34],[51,35],[51,42],[14,72],[11,70]]);
-   ctx.fillStyle='#cac2af';
-   for(const [x,y] of [[12,31],[48,35],[12,66],[48,70],[58,34],[66,65]])ctx.fillRect(x,y,3,3);
-  }else{
-   const metal=ctx.createLinearGradient(14,0,67,0);
-   for(const [t,color] of [[0,'#552934'],[.22,'#c14e40'],[.43,'#ff9161'],[.76,'#ad4540'],[1,'#40242e']])metal.addColorStop(t,color);
-   poly(metal,[[14,18],[66,18],[64,70],[55,78],[24,78],[16,70]]);
-   ctx.fillStyle='#332631';ctx.beginPath();ctx.ellipse(40,18,26,10,0,0,Math.PI*2);ctx.fill();
-   ctx.strokeStyle='#8f6a71';ctx.stroke();ctx.fillStyle='#d4aaa2';ctx.fillRect(44,16,8,4);
-   for(const y of [27,62]){
-    ctx.fillStyle='#502e38';ctx.fillRect(15,y,50,4);
-    ctx.fillStyle='#e17a57';ctx.fillRect(18,y+3,44,2);
-   }
-   poly('#ffbf58',[[40,36],[53,55],[27,55]]);
-   ctx.fillStyle='#3f2630';ctx.fillRect(39,42,3,7);ctx.fillRect(39,51,3,2);
-  }
-  sprites.set(kind,canvas);
-  return canvas;
+ function prepare(){
+  if(loadTask)return loadTask;
+  loadTask=Promise.all(Object.keys(kinds).map(kind=>new Promise((resolve,reject)=>{
+   const image=new Image();
+   image.onload=()=>{
+    if(image.naturalWidth!==image.naturalHeight){
+     reject(new Error('Invalid prop sprite: '+kind));
+     return;
+    }
+    sprites.set(kind,image);
+    resolve();
+   };
+   image.onerror=()=>reject(new Error('Cannot load prop sprite: '+kind));
+   image.src='./assets/props/'+kind+'.webp';
+  }))).catch(error=>{
+   loadTask=null;
+   throw error;
+  });
+  return loadTask;
  }
- return {spawn,tick,push,along,art};
+
+ return {spawn,tick,push,along,prepare,art:kind=>sprites.get(kind)};
 })();
