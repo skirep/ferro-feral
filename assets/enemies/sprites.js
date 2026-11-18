@@ -108,31 +108,35 @@ const ferroEnemySprites = (() => {
   return sprites.map((source,slot)=>scaleMotion(boundsByPose[0][slot],boundsByPose.flatMap(pose=>pose[slot]),source));
  }
 
- // Keep only the active and most recently loaded campaign world decoded.
- function prepare(theme){
-  if(loaded.has(theme)){
-   const entry=loaded.get(theme);
-   loaded.delete(theme);
-   loaded.set(theme,entry);
-   return Promise.resolve();
-  }
-  if(worlds.has(theme))return worlds.get(theme);
-  const [file,rects]=atlases[theme], prefix=file.replace('-sprites.png','');
-  const directionalTypes=typesByWorld[theme].filter(type=>type.atlas);
-  const task=Promise.all([
-   image(file),
-   Promise.all(motionPoses.map(pose=>image(prefix+'-'+pose+'.png'))),
-   Promise.all(directionalTypes.map(async type=>{
-    const sheet=await image('360/'+type.atlas+'.webp');
-    const cell=sheet.naturalWidth/directionalFrames;
-    if(![80,96].includes(cell)||sheet.naturalHeight!==cell*views*motionPoses.length){
-     throw new Error('Invalid directional enemy atlas: '+type.atlas);
-    }
-    return [type.slot,{sheet,cell}];
-   }))
-  ]).then(([base,sheets,directional])=>{
+ function rosterFor(theme,slots){
+  const roster=typesByWorld[theme];
+  return slots?[...new Set(slots)].map(slot=>roster[slot]):roster;
+ }
+
+ function directionalAtlas(entry,type){
+  const slot=type.slot;
+  if(!type.atlas||entry.directional.has(slot))return;
+  if(entry.pending.has(slot))return entry.pending.get(slot);
+  const task=image('360/'+type.atlas+'.webp').then(sheet=>{
+   const cell=sheet.naturalWidth/directionalFrames;
+   if(![80,96].includes(cell)||sheet.naturalHeight!==cell*views*motionPoses.length){
+    throw new Error('Invalid directional enemy atlas: '+type.atlas);
+   }
+   entry.directional.set(slot,{sheet,cell});
+  }).finally(()=>entry.pending.delete(slot));
+  entry.pending.set(slot,task);
+  return task;
+ }
+
+ async function loadWorld(theme){
+  const entry={sprites:[],sheets:[],geometry:[],directional:new Map(),pending:new Map()};
+  if(typesByWorld[theme].some(type=>!type.atlas)){
+   const [file,rects]=atlases[theme], prefix=file.replace('-sprites.png','');
+   const [base,sheets]=await Promise.all([
+    image(file),Promise.all(motionPoses.map(pose=>image(prefix+'-'+pose+'.png')))
+   ]);
    const baseAlpha=readAlpha(base);
-   const sprites=rects.map(([x,y,w,h])=>{
+   entry.sprites=rects.map(([x,y,w,h])=>{
     if(x+w>base.naturalWidth||y+h>base.naturalHeight)throw new Error('Invalid enemy atlas dimensions');
     const box=bounds(baseAlpha,x,y,w,h);
     return box?{image:base,x:x+box.left,y:y+box.top,w:box.right-box.left,h:box.bottom-box.top}
@@ -141,11 +145,30 @@ const ferroEnemySprites = (() => {
    for(const sheet of sheets){
     if(sheet.naturalWidth!==motionColumns*size||sheet.naturalHeight!==10*size)throw new Error('Invalid motion atlas dimensions');
    }
-   loaded.set(theme,{sprites,sheets,geometry:motionGeometry(sheets,sprites),directional:new Map(directional)});
-   trimWorlds();
-  }).finally(()=>worlds.delete(theme));
-  worlds.set(theme,task);
-  return task;
+   entry.sheets=sheets;
+   entry.geometry=motionGeometry(sheets,entry.sprites);
+  }
+  return entry;
+ }
+
+ // Campaign and bestiary request only what they display. The arena requests complete worlds.
+ async function prepare(theme,slots){
+  let entry=loaded.get(theme);
+  if(!entry){
+   if(!worlds.has(theme)){
+    const task=loadWorld(theme).then(world=>{
+     loaded.set(theme,world);
+     trimWorlds();
+     return world;
+    }).finally(()=>worlds.delete(theme));
+    worlds.set(theme,task);
+   }
+   entry=await worlds.get(theme);
+  }else{
+   loaded.delete(theme);
+   loaded.set(theme,entry);
+  }
+  await Promise.all(rosterFor(theme,slots).map(type=>directionalAtlas(entry,type)));
  }
 
  function motionFrame(sheet,type,view,frame,geometry){
@@ -242,13 +265,17 @@ const ferroEnemySprites = (() => {
   prepare,viewFor,
   anchor:foot/size,
   retainWorlds(value){keepAllWorlds=value;trimWorlds()},
-  ready(theme){return loaded.has(theme)},
+  ready(theme,slots){
+   const entry=loaded.get(theme);
+   return !!entry&&rosterFor(theme,slots).every(type=>!type.atlas||entry.directional.has(type.slot));
+  },
   clear(){frames.clear()},
   get(type,view,pose,frame){
    const entry=loaded.get(type.theme);
    if(!entry)return null;
    const motion=pose==='run'?'walk':pose;
    const directional=entry.directional.get(type.slot);
+   if(type.atlas&&!directional)return null;
    const sheet=entry.sheets[motionPoses.indexOf(motion)];
    const cachedFrame=directional?(pose==='idle'?0:frame):sheet?Math.floor(frame/2):frame;
    const key=type.id+':'+view+':'+(sheet?motion:pose)+':'+cachedFrame;

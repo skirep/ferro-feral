@@ -122,7 +122,9 @@ const ferroEnemyNames = [
 
 const islandDirectional = [
  'corc-de-quilla','cranc-de-la-sentina','corsari-cosit','espectre-del-fanal','vigia-dels-esculls',
- 'carcassa-d-ancora','escurco-de-manglar','canoner-ofegat','busso-de-bronze','gavina-d-ossos'
+ 'carcassa-d-ancora','escurco-de-manglar','canoner-ofegat','busso-de-bronze','gavina-d-ossos',
+ 'sangonera-del-rom','esquelet-del-barril','idol-de-corall','pop-de-la-polvora','sirena-d-algues',
+ 'contramestre-de-la-boira','ombra-del-taverner','custodi-de-la-selva','guardia-de-les-tombes','el-capita-maleit'
 ];
 
 const types = ferroEnemyWorlds.flatMap((world, theme) =>

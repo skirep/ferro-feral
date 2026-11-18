@@ -78,23 +78,28 @@ const ferroBestiary=(()=>{
  };
  slider.oninput=()=>{stop();render()};
  pose.onchange=reset;
- enemy.onchange=()=>{showPlacement();reset()};
+ enemy.onchange=loadSelection;
+
+ async function loadSelection(){
+  const revision=++opened;
+  const type=roster[Number(enemy.value)];
+  stop();
+  slider.disabled=play.disabled=true;
+  placement.textContent='Carregant els atles…';
+  for(const ctx of previews)ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
+  try{
+   await ferroEnemySprites.prepare(type.theme,[type.slot]);
+   if(revision!==opened||panel.hidden)return;
+   showPlacement();
+   reset();
+   slider.disabled=play.disabled=false;
+  }catch{
+   if(revision===opened)placement.textContent='No s’han pogut carregar els atles. Torna a obrir el bestiari.';
+  }
+ }
 
  return {
-  async open(){
-   const revision=++opened;
-   play.disabled=true;
-   placement.textContent='Carregant els atles…';
-   try{
-    await ferroEnemySprites.prepare(roster[0].theme);
-    if(revision!==opened||panel.hidden)return;
-    showPlacement();
-    render();
-    play.disabled=false;
-   }catch{
-    if(revision===opened)placement.textContent='No s’han pogut carregar els atles. Torna a obrir el bestiari.';
-   }
-  },
+  open:loadSelection,
   close(){opened++;stop()}
  };
 })();

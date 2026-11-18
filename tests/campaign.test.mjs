@@ -117,6 +117,31 @@ test('directional sprites address eight views in each authored movement', () => 
   assert.equal(viewFor(0, Math.PI * 27 / 180, 0), 1);
 });
 
+test('directional atlases load once on demand and a partial world is not ready for the arena', async () => {
+  const downloads = [];
+  class FakeImage {
+    naturalWidth = 96 * 12;
+    naturalHeight = 96 * 24;
+    set src(path) {
+      downloads.push(path);
+      queueMicrotask(() => this.onload());
+    }
+  }
+  const scoped = runInNewContext(
+    'const typesByWorld = [[{slot: 0, atlas: "first"}, {slot: 1, atlas: "second"}]];\n' +
+    read('../assets/enemies/sprites.js') + '\nferroEnemySprites',
+    { Image: FakeImage }
+  );
+  await Promise.all([scoped.prepare(0, [0]), scoped.prepare(0, [0])]);
+  assert.equal(scoped.ready(0, [0]), true);
+  assert.equal(scoped.ready(0, [1]), false);
+  assert.equal(scoped.ready(0), false);
+  assert.deepEqual(downloads, ['./assets/enemies/360/first.webp']);
+  await scoped.prepare(0);
+  assert.equal(scoped.ready(0), true);
+  assert.deepEqual(downloads, ['./assets/enemies/360/first.webp', './assets/enemies/360/second.webp']);
+});
+
 test('progress persists across reads and replay preserves the highest unlock', () => {
   const storage = memoryStorage();
   assert.equal(readCampaignProgress(storage), 0);
