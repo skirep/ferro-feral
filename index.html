@@ -18,11 +18,43 @@
 #touchActions button:active{background:#c4603e}
 #mute{position:fixed;right:10px;top:10px;padding:8px;background:#21141c;color:#fff0d0}
 #menu{overflow:auto;align-content:safe center}#menuActions[hidden]{display:none}#menuActions{display:flex;flex-wrap:wrap;gap:8px;max-width:540px}#menuActions button:not(#start),#menuBack{background:#2f2534;color:#fff0d0;border:1px solid #aa7766}#menuPanel{max-width:540px;background:#1b1320;padding:16px;border:1px solid #a66c57}#menuPanel h2{margin:0 0 9px;font-size:20px}#menuPanel label{display:block;margin:12px 0}#menuPanel select{background:#362634;color:#fff0d0;padding:5px}#menuPanel p{margin:8px 0}#pauseButton{position:fixed;right:62px;top:10px;padding:8px 12px;background:#21141c;color:#fff0d0;display:none}body.playing #pauseButton{display:block}
+#menu{touch-action:pan-y}#menu:has(#bestiaryPanel:not([hidden])){place-content:safe center;grid-template-columns:min(100%,660px)}
+#menu:has(#bestiaryPanel:not([hidden]))>h1,#menu:has(#bestiaryPanel:not([hidden]))>#intro{display:none}
+#menuPanel:has(#bestiaryPanel:not([hidden])){max-width:none}
+#bestiaryControls{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:end;margin-bottom:12px}
+#menuPanel #bestiaryControls label{display:grid;gap:4px;margin:0;font-size:13px;color:#f4c4a5}
+#bestiaryControls select{max-width:100%;min-height:42px}
+#bestiaryPlayback{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:12px 0}
+#bestiaryPlayback button{font-size:13px;min-width:100px;padding:10px;background:#ff6847}
+#bestiaryPlayback input{accent-color:#ff6847;max-width:100%}
+#bestiaryFrameCount{min-width:5ch;font-variant-numeric:tabular-nums}
+#bestiaryViews{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+#bestiaryViews figure{margin:0;min-width:0;background:#231b28;border:1px solid #64474a;text-align:center}
+#bestiaryViews figure:nth-child(5){border-color:#ff6847}
+#bestiaryViews canvas{width:100%;height:auto;aspect-ratio:1;background:radial-gradient(ellipse at 50% 80%,#353c45,#1b1721 70%)}
+#bestiaryViews figcaption{padding:5px 2px;color:#ffd3b1;font-size:clamp(9px,2.5vw,13px)}
+#bestiaryArena{font-size:13px;color:#acdacf}
+@media(max-width:420px){#menu:has(#bestiaryPanel:not([hidden])){padding:12px}#menuPanel:has(#bestiaryPanel:not([hidden])){padding:10px}#bestiaryViews{gap:4px}}
 #campaignLevels li{margin:6px 0}#campaignLevels button{padding:8px 12px;text-align:left}#campaignLevels button:disabled{opacity:.48;cursor:default}
 </style>
 <canvas id="screen" width="576" height="324" aria-label="Ferro Feral"></canvas>
-<section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">Travessa cinc mons, venç els guardians i reuneix les claus del Llindar.</p><p id="accountStatus" role="status" hidden></p><div id="menuActions"><button id="start">Inicia la campanya</button><button id="menuArena">Arena de quatre sales</button><button id="menuArenaExit" hidden>Surt de l’arena</button><button id="menuCampaign">Tria un món</button><button id="accountButton" hidden>Entra amb Google</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
-<section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><label>Món <select id="worldSelect"></select></label><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label>Volum dels efectes <input id="fxVolume" type="range" min="0" max="1" step=".05"></label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma Q per saltar i Esc per pausar.</p><p><b>Mòbil</b> · Bolet per moure’t, arrossega la vista per girar i toca FOC, Salt o Arma.</p><p><b>Comandament</b> · Estic esquerre per moure’t, dret per girar, RT per disparar, A per saltar, Y per canviar d’arma i Menú per pausar o continuar.</p></div><button id="menuBack">Torna</button></section></section>
+<section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">Travessa cinc mons, venç els guardians i reuneix les claus del Llindar.</p><p id="accountStatus" role="status" hidden></p><div id="menuActions"><button id="start">Inicia la campanya</button><button id="menuArena">Arena de quatre sales</button><button id="menuArenaExit" hidden>Surt de l’arena</button><button id="menuCampaign">Tria un món</button><button id="menuBestiary">Bestiari 360°</button><button id="accountButton" hidden>Entra amb Google</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
+<section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><label>Món <select id="worldSelect"></select></label><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label>Volum dels efectes <input id="fxVolume" type="range" min="0" max="1" step=".05"></label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma Q per saltar i Esc per pausar.</p><p><b>Mòbil</b> · Bolet per moure’t, arrossega la vista per girar i toca FOC, Salt o Arma.</p><p><b>Comandament</b> · Estic esquerre per moure’t, dret per girar, RT per disparar, A per saltar, Y per canviar d’arma i Menú per pausar o continuar.</p></div>
+<div id="bestiaryPanel" hidden>
+ <h2>Bestiari 360°</h2>
+ <div id="bestiaryControls">
+  <label>Reforç de l’Illa Maleïda <select id="bestiaryEnemy"></select></label>
+  <label>Animació <select id="bestiaryPose"><option value="walk">Caminar</option><option value="jump">Saltar</option><option value="shoot">Disparar</option></select></label>
+ </div>
+ <div id="bestiaryViews"></div>
+ <div id="bestiaryPlayback">
+  <button id="bestiaryPlay" type="button">Reprodueix</button>
+  <input id="bestiaryFrame" aria-label="Fotograma" type="range" min="1" max="12" value="1">
+  <output id="bestiaryFrameCount" for="bestiaryFrame">1/12</output>
+ </div>
+ <p id="bestiaryArena" role="status"></p>
+</div>
+<button id="menuBack">Torna</button></section></section>
 <button id="pauseButton" type="button" aria-label="Pausa">Ⅱ</button>
 <button id="mute" aria-label="Activa o silencia la música">♫</button>
 <div id="touch" aria-label="Controls tàctils">
@@ -41,10 +73,11 @@
 <script src="./account.js"></script>
 <script src="./supabase-config.js"></script>
 <script src="./assets/enemies/catalog.js?v=reinforcements1"></script>
-<script src="./assets/enemies/sprites.js?v=reinforcements1"></script>
+<script src="./assets/enemies/sprites.js?v=direction-review1"></script>
 <script src="./assets/combat.js"></script>
-<script src="./assets/levels/arena.js?v=1"></script>
+<script src="./assets/levels/arena.js?v=2"></script>
 <script src="./assets/music.js"></script>
+<script src="./assets/enemies/bestiary.js"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
@@ -183,9 +216,6 @@ function ray(x,y,dx,dy,startZ,endZ,distance){
 }
 const weaponSheet=new Image();
 const jumpDuration=.98, attackDuration=.82, hitDuration=.24;
-function facingView(facing,bearing){
- return (Math.round(angle(bearing-facing)*4/Math.PI)+8)%8;
-}
 function hopHeight(e){
  return e.jump>0?.45*Math.sin(Math.PI*e.jump/jumpDuration):0;
 }
@@ -371,11 +401,12 @@ function update(dt){
   const melee=kind==='runner'||kind==='charger'||kind==='ghost';
   const range=e===boss?6.5:melee?2.2:kind==='sniper'?11:6;
   e.jump=Math.max(0,e.jump-dt);
-  if(see&&(e.wind>0||d<9))e.facing+=Math.max(-dt*3,Math.min(dt*3,angle(Math.atan2(dy,dx)-e.facing)));
+  const aim=Math.atan2(dy,dx);
+  if(see&&(e.wind>0||d<range||d<9))e.facing+=Math.max(-dt*3,Math.min(dt*3,angle(aim-e.facing)));
   if(e.hit>0)e.wind=0;
   const wasWind=e.wind;
   e.reload-=dt;e.wind=Math.max(0,e.wind-dt);
-  if(see&&d<range&&e.reload<=0&&e.jump<=0){
+  if(see&&d<range&&e.reload<=0&&e.jump<=0&&Math.abs(angle(aim-e.facing))<=Math.PI/8){
    e.wind=attackDuration;e.reload=kind==='sniper'?2.9:kind==='burst'?1.15:1.75;
   }
   if(wasWind>attackDuration*.48&&e.wind<=attackDuration*.48&&see&&d<range){
@@ -384,8 +415,8 @@ function update(dt){
     else damage(kind==='charger'?21:12);
    }
    else{
-    const base=Math.atan2(dy,dx), offsets=e===boss?(levels[n].stage===4?[-.40,-.20,0,.20,.40]:[-.20,0,.20]):kind==='burst'?[-.15,0,.15]:[0];
-    for(const offset of offsets)shots.push({x:e.x,y:e.y,a:base+offset,altitude:floor(e.x,e.y)+.48,color:e.type.world.glow,speed:kind==='sniper'?8:3.3,slope:((arena?enemyAltitude(target):p.z+.44)-floor(e.x,e.y)-.48)/d,ttl:4,owner:arena?e:null});
+    const offsets=e===boss?(levels[n].stage===4?[-.40,-.20,0,.20,.40]:[-.20,0,.20]):kind==='burst'?[-.15,0,.15]:[0];
+    for(const offset of offsets)shots.push({x:e.x,y:e.y,a:aim+offset,altitude:floor(e.x,e.y)+.48,color:e.type.world.glow,speed:kind==='sniper'?8:3.3,slope:((arena?enemyAltitude(target):p.z+.44)-floor(e.x,e.y)-.48)/d,ttl:4,owner:arena?e:null});
    }
   }
   const x=Math.floor(e.x),y=Math.floor(e.y);
@@ -660,8 +691,7 @@ function draw(){
   const elapsedFrame=pose==='death'?e.dead*12:pose==='shoot'?(1-e.wind/attackDuration)*12:pose==='hit'?(1-e.hit/hitDuration)*12:pose==='jump'?(1-e.jump/jumpDuration)*12:(pose==='idle'?time*5+e.phase*12:e.travel)%12;
   const frame=Math.max(0,Math.min(11,Math.floor(elapsedFrame)));
   const bearing=Math.atan2(p.y-e.y,p.x-e.x);
-  const view=facingView(e.facing,bearing);
-  if(e.view===undefined||Math.abs(angle(bearing-e.facing-e.view*Math.PI/4))>Math.PI*.17)e.view=view;
+  e.view=ferroEnemySprites.viewFor(e.facing,bearing,e.view);
   scene.push({x:e.x,y:e.y,foe:e,pose,frame,size:1+(e.type.size-1)*(e.type.kind==='boss'?.65:.5),
    offset:e.hp>0?hopHeight(e):0,hit:e.hit>0});
 
@@ -680,10 +710,11 @@ function draw(){
  scene.sort((a,b)=>b.z-a.z);
  for(const o of scene){
   if(o.z<.14)continue;
-  const h=Math.max(o.blood?2:0,Math.floor(focal/o.z*o.size)),w=!o.foe?h:Math.round(h*1.20);
+  const h=Math.max(o.blood?2:0,Math.floor(focal/o.z*o.size)),w=h;
   const left=Math.floor(W/2+W/2*o.l/(o.z*plane)-w/2);
   const altitude=o.altitude??floor(o.x,o.y)+(o.offset||0);
-  const top=Math.floor(horizon+(eye-altitude)*focal/o.z-h);
+  const anchor=o.foe?ferroEnemySprites.anchor:1;
+  const top=Math.floor(horizon+(eye-altitude)*focal/o.z-h*anchor);
   if(w<1||left>=W||left+w<=0||top>=H||top+h<=0)continue;
   const hasArt=o.art||o.foe;
   let visible=false;
@@ -1057,9 +1088,16 @@ function showMenuPanel(panel){
  $('menuActions').hidden=!!panel;$('menuPanel').hidden=!panel;
  $('campaignPanel').hidden=panel!=='campaign';
  $('optionsPanel').hidden=panel!=='options';$('controlsPanel').hidden=panel!=='controls';
+ $('bestiaryPanel').hidden=panel!=='bestiary';
+ if(panel!=='bestiary')ferroBestiary.close();
 }
 $('menuOptions').onclick=()=>showMenuPanel('options');
 $('menuControls').onclick=()=>showMenuPanel('controls');
+$('menuBestiary').onclick=()=>{
+ if(loadingEnemyArt)return;
+ showMenuPanel('bestiary');
+ ferroBestiary.open();
+};
 $('menuBack').onclick=()=>showMenuPanel();
 $('menuRestart').onclick=e=>{if(arena){startArena(e);return}state='end';$('start').dataset.level=n;$('start').onclick(e)};
 $('pauseButton').onclick=pause;

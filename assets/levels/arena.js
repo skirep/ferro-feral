@@ -21,7 +21,7 @@ const ferroArena=(()=>{
   const spawns=occupants.flatMap((group,room)=>{
    const [x,y]=rooms[room];
    return group.map((type,i)=>({
-    x:x-4.4+i%10*.98,y:y-3+Math.floor(i/10)*1.45,type
+    x:x-4.4+i%10*.98,y:y-3+Math.floor(i/10)*1.45,type,room
    }));
   });
   return {

@@ -150,7 +150,7 @@ const ferroEnemySprites = (() => {
 
  function motionFrame(sheet,type,view,frame,geometry){
   const image=canvas(size),ctx=image.getContext('2d');
-  const index=type.slot*motionFrames+Math.floor(frame*motionFrames/12);
+  const index=type.slot*motionFrames+frame;
   const x=(index%motionColumns)*size,y=Math.floor(index/motionColumns)*size;
   const turn=directionWidths[view];
   ctx.translate(size/2,foot);
@@ -163,12 +163,28 @@ const ferroEnemySprites = (() => {
   return image;
  }
 
- // Each row is one movement and viewing angle. Columns are consecutive frames.
+ // The authored sheets turn screen-left first. The game turns screen-right first.
+ function atlasRow(view,motion){
+  const poseIndex=motionPoses.indexOf(motion);
+  return poseIndex*views+(views-view)%views;
+ }
+
+ function viewFor(facing,bearing,previous){
+  const step=Math.PI*2/views;
+  const relative=bearing-facing;
+  const difference=relative-previous*step;
+  const hysteresis=Math.PI/60;
+  if(previous!==undefined&&Math.abs(Math.atan2(Math.sin(difference),Math.cos(difference)))<=step/2+hysteresis){
+   return previous;
+  }
+  return ((Math.round(relative/step)%views)+views)%views;
+ }
+
  function directionalFrame(sheet,view,motion,pose,frame){
   const image=canvas(size),ctx=image.getContext('2d');
-  const poseIndex=motionPoses.indexOf(motion);
-  const column=poseIndex<0?0:frame;
-  const row=(poseIndex<0?motionPoses.indexOf('shoot'):poseIndex)*views+view;
+  const animated=motionPoses.includes(motion);
+  const column=animated?frame:0;
+  const row=atlasRow(view,animated?motion:'walk');
   ctx.imageSmoothingEnabled=false;
   ctx.translate(size/2,foot);
   if(pose==='death'){
@@ -223,7 +239,8 @@ const ferroEnemySprites = (() => {
   while(!keepAllWorlds&&loaded.size>2)loaded.delete(loaded.keys().next().value);
  }
  return {
-  prepare,
+  prepare,viewFor,
+  anchor:foot/size,
   retainWorlds(value){keepAllWorlds=value;trimWorlds()},
   ready(theme){return loaded.has(theme)},
   clear(){frames.clear()},
@@ -239,7 +256,7 @@ const ferroEnemySprites = (() => {
    let image=frames.get(key);
    if(!image){
     if(directional)image=directionalFrame(directional,view,motion,pose,cachedFrame);
-    else if(sheet)image=motionFrame(sheet,type,view,frame,geometry);
+    else if(sheet)image=motionFrame(sheet,type,view,cachedFrame,geometry);
     else image=draw(entry.sprites[type.slot],type,view,pose,frame,geometry);
    }
    frames.delete(key);

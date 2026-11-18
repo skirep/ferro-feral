@@ -72,6 +72,47 @@ test('all campaign enemy and weapon sprite files exist', () => {
   }
 });
 
+test('the four arena rooms each have two exits and every enemy has two distinct spawns', () => {
+  const { grid, spawns, start, types } = runInNewContext(source + [
+    read('../assets/enemies/catalog.js'),
+    read('../assets/levels/arena.js'),
+    '({...ferroArena.layout(37, types), types})'
+  ].join('\n'));
+  assert.equal(spawns.length, types.length * 2);
+  assert.equal(new Set(spawns.map(({x, y}) => x + ':' + y)).size, spawns.length);
+  assert.equal(grid[Math.floor(start[1])][Math.floor(start[0])], 0);
+  for (const type of types) {
+    const copies = spawns.filter(spawn => spawn.type === type);
+    assert.equal(copies.length, 2, type.name);
+    assert.equal(Math.abs(copies[0].room - copies[1].room), 2, type.name);
+    for (const {x, y} of copies) assert.equal(grid[Math.floor(y)][Math.floor(x)], 0, type.name);
+  }
+  for (const [x, y] of [[9,9], [27,9], [27,27], [9,27]]) {
+    const exits = [[x-7,y], [x+7,y], [x,y-7], [x,y+7]];
+    assert.equal(exits.filter(([cx, cy]) => grid[cy][cx] === 0).length, 2);
+  }
+});
+
+test('directional sprites address eight views in each authored movement', () => {
+  const spriteSource = read('../assets/enemies/sprites.js').replace(
+    'prepare,viewFor,', 'prepare,viewFor,atlasRow,'
+  );
+  const {viewFor, atlasRow} = runInNewContext(spriteSource + '\nferroEnemySprites');
+  for (let pose = 0; pose < 3; pose++) {
+    const movement = ['walk', 'jump', 'shoot'][pose];
+    for (let view = 0; view < 8; view++) {
+      const bearing = view * Math.PI / 4;
+      assert.equal(viewFor(0, bearing), view);
+      assert.equal(viewFor(2 * Math.PI, bearing), view);
+      assert.equal(atlasRow(view, movement), pose * 8 + (8 - view) % 8);
+    }
+  }
+  assert.equal(viewFor(0, Math.PI, 3), 4);
+  assert.equal(viewFor(0, -Math.PI, 5), 4);
+  assert.equal(viewFor(0, Math.PI * 24 / 180, 0), 0);
+  assert.equal(viewFor(0, Math.PI * 27 / 180, 0), 1);
+});
+
 test('progress persists across reads and replay preserves the highest unlock', () => {
   const storage = memoryStorage();
   assert.equal(readCampaignProgress(storage), 0);
