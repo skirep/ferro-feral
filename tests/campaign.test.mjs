@@ -548,3 +548,20 @@ test('Sputnik orbit encounter arms in view, releases one cache and restores dayl
   assert.equal(orbit.update(event,{x:25,y:25,a:0},20),undefined);
   assert.equal(orbit.sample(event,22),null);
 });
+
+test('orbital motion has distinct approach, scan lock and departure poses', () => {
+  const orbit=runInNewContext(source+'\nferroSputnikOrbit');
+  const event=orbit.create({x:20,y:20},0);
+  orbit.update(event,{x:12,y:20,a:0},10);
+  const entry=orbit.sample(event,12);
+  const scan=orbit.sample(event,17);
+  const lock=orbit.sample(event,21);
+  const retreat=orbit.sample(event,25.5);
+  assert.ok(entry.bank>scan.bank);
+  assert.ok(lock.lock>.9&&lock.lock>scan.lock);
+  assert.ok(retreat.bank<0&&retreat.z>scan.z&&retreat.thrust>scan.thrust);
+  assert.equal(orbit.disturbance(entry,event),null);
+  assert.ok(orbit.disturbance(scan,event).radius>=6);
+  assert.equal(orbit.plantSway(scan,{x:scan.targetX,y:scan.targetY,kind:3,yaw:1}),0);
+  assert.notEqual(orbit.plantSway(scan,{x:scan.targetX,y:scan.targetY,kind:1,yaw:1}),0);
+});

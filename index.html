@@ -103,9 +103,9 @@ body.playing #photoButton{display:block}
 <script src="./assets/levels/ship.js"></script>
 <script src="./assets/levels/illa-sputnik.js?v=sun"></script>
 <script src="./assets/sputnik-art.js?v=wildlife"></script>
-<script src="./assets/sputnik-wildlife.js"></script>
+<script src="./assets/sputnik-wildlife.js?v=orbital-motion"></script>
 <script src="./assets/sputnik-sun.js?v=light"></script>
-<script src="./assets/sputnik-orbit.js"></script>
+<script src="./assets/sputnik-orbit.js?v=motion"></script>
 <script src="./assets/photo.js"></script>
 <script src="./assets/viewport.js"></script>
 <script src="./campaign.js?v=sputnik"></script>
@@ -618,14 +618,15 @@ function update(dt){
  heat-=dt;flash-=dt;hurt-=dt;if(keys.has(' ')||firePointer!==null||padFire)fire();
  updateNavigation();
  if(island){
-  ferroSputnikWildlife.update(wildlife,grid,p,dt,heat>0,move);
   const cue=ferroSputnikOrbit.update(orbit,p,time,attempt.seconds);
+  const disturbance=ferroSputnikOrbit.disturbance(ferroSputnikOrbit.sample(orbit,time),orbit);
+  ferroSputnikWildlife.update(wildlife,grid,p,dt,heat>0,move,disturbance);
   if(cue){
    if(audio?.state==='running')ferroSputnikOrbit.cue(cue,tone,audio.currentTime,fx);
    pickupNotice=cue==='signal'?'SENYAL DETECTAT · SOBREVOL IMMINENT':'CÀRREGA OBERTA · PETJA DE L’SPUTNIK';
    pickupTime=4.5;
    if(cue==='cache'){
-    items.push([orbit.x-1.6,orbit.y,'ammo'],[orbit.x-.5,orbit.y+1.5,'hp']);
+    items.push([orbit.x-1.6,orbit.y,'ammo','sputnik-cache'],[orbit.x-.5,orbit.y+1.5,'hp','sputnik-cache']);
    }
   }
  }
@@ -826,7 +827,8 @@ function updateLights(core){
   addLight(p.x+Math.cos(p.a)*.63,p.y+Math.sin(p.a)*.63,3.5,.36*charge,boltColor[6]);
  }
  for(const shot of shots)if(Math.hypot(p.x-shot.x,p.y-shot.y)<10)addLight(shot.x,shot.y,1.45,.16,[255,130,82]);
- if(orbitFrame?.scan)addLight(orbitFrame.targetX,orbitFrame.targetY,6,orbitFrame.scan*.7,ferroSputnikOrbit.aurora);
+ if(orbitFrame?.scan)addLight(orbitFrame.targetX,orbitFrame.targetY,6,orbitFrame.scan*(.62+orbitFrame.lock*.28),ferroSputnikOrbit.aurora);
+ if(orbitFrame?.distress)addLight(orbit.x,orbit.y,3.8,orbitFrame.distress*(.15+(1+Math.sin(time*5.4))*.09),ferroSputnikOrbit.amber);
  if(orbitFrame?.pulse)addLight(orbit.x,orbit.y,8,orbitFrame.pulse*.85,ferroSputnikOrbit.amber);
 }
 function lit(rgb,light,index,weight=1,fog=0,haze=rgb){
@@ -1132,14 +1134,14 @@ function drawContactShadows(ca,sa,plane,eye){
 }
 function drawWreckSmoke(ca,sa,plane,eye){
  const {x,y}=island.wreck;
- ctx.fillStyle='#7d8775';
+ ctx.fillStyle=orbitFrame?.scan>.1?'#7cb6ac':orbitFrame?.pulse>.08?'#a48d6d':'#7d8775';
  for(let i=0;i<21;i++){
   const age=(time*.34+i/21)%1;
   const dx=x-viewCamera.x+age*.64,dy=y-viewCamera.y+age*.42+Math.sin(i*4.2+time)*age*.21;
   const z=dx*ca+dy*sa;
   if(z<.55||z>25)continue;
   const sx=Math.floor(W/2+W/2*(-dx*sa+dy*ca)/(z*plane));
-  const sy=Math.floor(horizon+(eye-.73-age*3.3)*focal/z);
+  const sy=Math.floor(horizon+(eye-.73-age*(3.3+(orbitFrame?.scan??0)*1.2))*focal/z);
   if(sx<0||sx>=W||sy<0||sy>=H||depth[sy*W+sx]<z)continue;
   const radius=Math.min(19,1+focal/z*(.075+age*.29));
   ctx.globalAlpha=(1-age)*.18;
@@ -1211,6 +1213,8 @@ function draw(){
   };
   ferroSputnikOrbit.rings(ctx,orbitFrame,orbit,projection);
   ferroSputnikOrbit.draw(ctx,orbitFrame,projection);
+  ferroSputnikOrbit.wreck(ctx,orbitFrame,orbit,projection);
+  if(settings.particles)ferroSputnikOrbit.debris(ctx,orbitFrame,orbit,projection);
  }
  drawContactShadows(ca,sa,plane,eye);
  const scene=lamps.map(([x,y],i)=>({
@@ -1220,7 +1224,8 @@ function draw(){
   const dx=plant.x-viewCamera.x,dy=plant.y-viewCamera.y;
   if(dx*dx+dy*dy>27*27||dx*ca+dy*sa<.14)continue;
   const frame=ferroSputnikArt.frame(plant,Math.atan2(-dy,-dx));
-  if(frame)scene.push({...plant,...frame,altitude:0,fixture:true});
+  if(frame)scene.push({...plant,...frame,altitude:0,fixture:true,
+   roll:settings.effects?ferroSputnikOrbit.plantSway(orbitFrame,plant):0});
  }
  if(island)for(const animal of wildlife){
   const dx=animal.x-viewCamera.x,dy=animal.y-viewCamera.y;
@@ -1271,7 +1276,8 @@ function draw(){
    scene.push({x,y,art:pickupArt[id],size:.74,offset:.09+Math.sin(time*4)*.055,fixture:true});
    continue;
   }
-  scene.push({x,y,size:kind==='exit'?.65:.21,color:kind==='hp'?'#8cf0a2':kind==='ammo'?'#ffce75':kind==='secret'?'#bf91ff':kind==='checkpoint'?'#4be9ff':keyHeld?'#69fce0':'#bd5453',offset:kind==='exit'?.19:.09});
+  scene.push({x,y,size:kind==='exit'?.65:.21,color:kind==='hp'?'#8cf0a2':kind==='ammo'?'#ffce75':kind==='secret'?'#bf91ff':kind==='checkpoint'?'#4be9ff':keyHeld?'#69fce0':'#bd5453',offset:kind==='exit'?.19:id==='sputnik-cache'?.16+Math.sin(time*4+x)*.09:.09,
+   lean:id==='sputnik-cache'?Math.sin(time*3+x)*.29:0});
  }
  for(const o of scene){const dx=o.x-viewCamera.x,dy=o.y-viewCamera.y;o.z=dx*ca+dy*sa;o.l=-dx*sa+dy*ca}
  scene.sort((a,b)=>b.z-a.z);

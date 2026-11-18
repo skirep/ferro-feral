@@ -48,24 +48,29 @@ const ferroSputnikWildlife=(()=>{
   return next;
  }
 
- function update(animals,grid,player,dt,startled,move){
+ function update(animals,grid,player,dt,startled,move,disturbance){
   for(const animal of animals){
    animal.age+=dt;
+   const startledByOrbit=disturbance&&Math.hypot(animal.x-disturbance.x,animal.y-disturbance.y)<disturbance.radius;
    if(animal.kind===2){
+    const alarm=animal.alarm??0;
+    animal.alarm=alarm+((startledByOrbit?1:0)-alarm)*Math.min(1,dt*2.5);
     const orbit=animal.age*animal.speed+animal.phase;
-    animal.x=animal.homeX+Math.cos(orbit)*animal.orbit;
-    animal.y=animal.homeY+Math.sin(orbit)*animal.orbit*.86;
-    animal.altitude=1.88+Math.sin(orbit+animal.phase)*.48+(animal.orbit-4)*.28;
+    const radius=animal.orbit+animal.alarm*2.1;
+    animal.x=animal.homeX+Math.cos(orbit)*radius;
+    animal.y=animal.homeY+Math.sin(orbit)*radius*.86;
+    animal.altitude=1.88+Math.sin(orbit+animal.phase)*.48+(animal.orbit-4)*.28+animal.alarm*1.6;
     animal.facing=Math.atan2(Math.cos(orbit)*.86,-Math.sin(orbit));
-    animal.frame=Math.floor((animal.age*10+animal.phase)%4);
+    animal.frame=Math.floor((animal.age*(10+animal.alarm*6)+animal.phase)%4);
     continue;
    }
    const distance=Math.hypot(player.x-animal.x,player.y-animal.y);
-   const flee=distance<(startled?6.8:2.2);
+   const flee=!!startledByOrbit||distance<(startled?6.8:2.2);
+   const threat=startledByOrbit?disturbance:player;
    if(flee&&!animal.flee){animal.next=null;animal.pause=0}
    animal.flee=flee;
    if(animal.pause>0){animal.pause-=dt;animal.frame=0;continue}
-   animal.next??=nextCell(animal,grid,player,flee);
+   animal.next??=nextCell(animal,grid,threat,flee);
    if(!animal.next)continue;
    const dx=animal.next.x-animal.x,dy=animal.next.y-animal.y,d=Math.hypot(dx,dy);
    if(d<.045){
