@@ -121,7 +121,8 @@ const ferroEnemyNames = [
 ];
 
 const islandDirectional = [
- 'corc-de-quilla','cranc-de-la-sentina','corsari-cosit','espectre-del-fanal','vigia-dels-esculls'
+ 'corc-de-quilla','cranc-de-la-sentina','corsari-cosit','espectre-del-fanal','vigia-dels-esculls',
+ 'carcassa-d-ancora','escurco-de-manglar','canoner-ofegat','busso-de-bronze','gavina-d-ossos'
 ];
 
 const types = ferroEnemyWorlds.flatMap((world, theme) =>
