@@ -6,7 +6,7 @@ const worlds = [
  {"name":"The Abyss","shape":"diamond","corridor":1,"root":32.7,"bpm":156}
 ];
 const levels = ferroWorldLevels.flatMap((stages,theme)=>
- stages.map((level,stage)=>({...level,theme,stage}))
+ stages.map((level,stage)=>({...level,name:ferroShip.names[theme][stage],theme,stage}))
 );
 
 const campaign = {

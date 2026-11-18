@@ -21,5 +21,10 @@ variants de 256 × 256 píxels i fa 768 × 256 en total. La farga de l’Arena f
 servir `foundry-walls.webp`. Els PNG segueixen aportant el terra, el sostre i
 les parets de reserva durant la càrrega.
 
+`ship-deck.webp` és l’atles de la campanya espacial. Té sis rajoles de
+256 × 256 en una graella de 3 × 2. La primera fila conté la paret, el terra
+i el sostre. La segona conté el contenidor, la consola i el reactor.
+`../skies/orbit.webp` és la panoràmica de l’espai que es veu pels finestrals.
+
 Els nivells són a `../levels/`, els enemics i les armes a `../combat.js`
 i els motius musicals a `../music.js`.

@@ -3,7 +3,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Ferro Feral — Dejoco Arts</title>
-<meta name="description" content="FPS retro de Dejoco Arts amb 25 nivells repartits en cinc mons.">
+<meta name="description" content="FPS retro de Dejoco Arts amb 25 nivells dins una nau espacial.">
 <style>
 *{box-sizing:border-box}body{margin:0;background:#100c13;color:#fff0d0;font:16px monospace;overflow:hidden;touch-action:none}canvas{width:100vw;height:100dvh;object-fit:contain;image-rendering:pixelated;display:block}#menu{position:fixed;inset:0;display:grid;place-content:center;padding:24px;background:linear-gradient(90deg,#130c16ee,#35192166)}#menu[hidden]{display:none}h1{font-size:clamp(48px,11vw,144px);line-height:.8;margin:16px 0;color:#ff613f;text-shadow:4px 5px #5c211e;letter-spacing:-.09em}p{max-width:48ch;line-height:1.5}button{background:#ff6847;color:#160e17;border:0;padding:14px 20px;font:bold 16px monospace;cursor:pointer}#touch{display:none;position:fixed;inset:0;pointer-events:none;user-select:none;-webkit-user-select:none}
 @media(any-pointer:coarse){body.playing #touch{display:block}}
@@ -38,7 +38,7 @@
 #campaignLevels li{margin:6px 0}#campaignLevels button{padding:8px 12px;text-align:left}#campaignLevels button:disabled{opacity:.48;cursor:default}
 </style>
 <canvas id="screen" width="576" height="324" aria-label="Ferro Feral"></canvas>
-<section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">Travessa cinc mons, venç els guardians i reuneix les claus del Llindar.</p><p id="accountStatus" role="status" hidden></p><div id="menuActions"><button id="start">Inicia la campanya</button><button id="menuArena">Arena de quatre sales</button><button id="menuArenaExit" hidden>Surt de l’arena</button><button id="menuCampaign">Tria un món</button><button id="menuBestiary">Bestiari 360°</button><button id="accountButton" hidden>Entra amb Google</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
+<section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">Travessa la nau, salta per sobre les bretxes i recupera les claus del Llindar.</p><p id="accountStatus" role="status" hidden></p><div id="menuActions"><button id="start">Inicia la campanya</button><button id="menuArena">Arena de quatre sales</button><button id="menuArenaExit" hidden>Surt de l’arena</button><button id="menuCampaign">Tria un món</button><button id="menuBestiary">Bestiari 360°</button><button id="accountButton" hidden>Entra amb Google</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
 <section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><label>Món <select id="worldSelect"></select></label><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label>Volum dels efectes <input id="fxVolume" type="range" min="0" max="1" step=".05"></label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label><label><input id="effectsOption" type="checkbox" checked> Esteles, impactes i llum animada</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–7 per canviar d’arma, Q per saltar i Esc per pausar.</p><p><b>Mòbil</b> · Bolet per moure’t, arrossega la vista per girar i toca FOC, Salt o Arma.</p><p><b>Comandament</b> · Estic esquerre per moure’t, dret per girar, RT per disparar, A per saltar, Y per canviar d’arma i Menú per pausar o continuar.</p></div>
 <div id="bestiaryPanel" hidden>
  <h2>Bestiari 360°</h2>
@@ -69,7 +69,8 @@
 <script src="./assets/levels/the-abyss.js"></script>
 <script src="./assets/textures/world-materials.js?v=arena-surge"></script>
 <script src="./assets/textures/load-textures.js?v=arena-surge"></script>
-<script src="./campaign.js"></script>
+<script src="./assets/levels/ship.js"></script>
+<script src="./campaign.js?v=ship-decks"></script>
 <script src="./account.js"></script>
 <script src="./supabase-config.js"></script>
 <script src="./assets/enemies/catalog.js?v=neon-360"></script>
@@ -80,14 +81,14 @@
 <script src="./assets/music.js"></script>
 <script src="./assets/enemies/bestiary.js?v=neon-360"></script>
 <script src="./assets/effects.js?v=muzzle-origin"></script>
-<script src="./assets/scenery.js"></script>
+<script src="./assets/scenery.js?v=ship-decks"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
 const screen=$('screen'), ctx=screen.getContext('2d');
 let W=576,H=324;
 ctx.imageSmoothingEnabled=false;
-const mapSize=37;
+const mapSize=ferroShip.mapSize;
 const keys=new Set();
 const viewPlane=.69;
 let attempt,checkpoint;
@@ -96,7 +97,7 @@ const owned=new Set([0]);
 const blood=[];
 const bloodColors=['#6a101d','#a0192b','#db2837','#ff514a'];
 let state='menu',time=0,elapsed=0,roomDistance,arena=false;
-let arenaCores=[],skyHeading=0;
+let arenaCores=[],skyHeading=0,ship=null;
 let arenaRoom,arenaAlive,arenaPulses,arenaDefeats;
 let props=[],playerBolts=[],blasts=[],chargedShot=null;
 const propFragments=[];
@@ -111,51 +112,11 @@ function level(index){
  ferroEnemySprites.clear();
  attempt={shots:0,hits:0,seconds:0,damageTaken:0,secrets:0,deaths:0};
  checkpoint=null;
- const chapter=levels[n], rooms=Array.from({length:16},(_,i)=>[4+i%4*9,4+Math.floor(i/4)*9]);
- grid=Array.from({length:mapSize},()=>Array(mapSize).fill(1));
- heights=grid.map(row=>row.map(()=>0));
- const biome=worlds[chapter.theme];
- if(chapter.outdoors)ferroScenery.load(chapter.theme,()=>{redraw=true});
- const orderHeight=i=>chapter.terraces[Math.min(3,Math.floor(i*4/chapter.route.length))];
- const mark=(x,y,z)=>{grid[y][x]=0;heights[y][x]=z};
- chapter.route.forEach((id,i)=>{
-  const [x,y]=rooms[id], large=chapter.arenas.includes(id)||i===chapter.route.length-1;
-  const rx=large?3:2, ry=large?3:1+(id%3!==0);
-  for(let dy=-ry;dy<=ry;dy++)for(let dx=-rx;dx<=rx;dx++){
-   const ax=Math.abs(dx),ay=Math.abs(dy);
-   if(i!==chapter.route.length-1){
-    if(biome.shape==='octagon'&&ax===rx&&ay===ry)continue;
-    if(biome.shape==='cross'&&ax>1&&ay>1)continue;
-    if(biome.shape==='diamond'&&ax+ay>Math.max(rx,ry)+1)continue;
-    if(biome.shape==='courtyard'&&large&&ax===3&&ay===3)continue;
-   }
-   mark(x+dx,y+dy,orderHeight(i));
-  }
- });
- for(let i=1;i<chapter.route.length;i++){
-  const [x,y]=rooms[chapter.route[i-1]],[ex,ey]=rooms[chapter.route[i]];
-  const dx=Math.sign(ex-x),dy=Math.sign(ey-y);
-  for(let j=1;j<9;j++){
-   const cx=x+dx*j,cy=y+dy*j;
-   const interpolation=j<=3?0:j>=6?1:(j-3)/3;
-   const z=orderHeight(i-1)+(orderHeight(i)-orderHeight(i-1))*interpolation;
-   const edge=Math.floor(biome.corridor/2);
-   for(let lane=-edge;lane<=edge;lane++){
-    const lx=cx+dy*lane,ly=cy+dx*lane;
-    if(grid[ly][lx]!==0)mark(lx,ly,z);
-   }
-  }
- }
- const [secretRoom,secretSide]=chapter.secret;
- const [secretX,secretY]=rooms[secretRoom];
- const roomWidth=chapter.arenas.includes(secretRoom)?3:2;
- const secretFloor=orderHeight(chapter.route.indexOf(secretRoom));
- for(let offset=roomWidth+1;offset<=5;offset++){
-  const x=secretX+offset*secretSide;
-  mark(x,secretY+1,secretFloor);
-  if(offset>=4)mark(x,secretY+2,secretFloor);
- }
- ceiling=2.58;
+ const chapter=levels[n];
+ ship=ferroShip.layout(chapter);
+ const {rooms,secret}=ship;
+ grid=ship.grid;heights=ship.heights;ceiling=2.92;
+ ferroScenery.prepareSpace(()=>{redraw=true});
  const spawn=(x,y,slot,i)=>{
   const type=typesByWorld[chapter.theme][slot];
   return {x:x+.5,y:y+.5,type,hp:type.hp,phase:i*.71,reload:1+i*.1,hit:0,dead:0,wind:0,facing:i*1.7,jump:0,travel:0,run:false};
@@ -171,12 +132,13 @@ function level(index){
  const [sx,sy]=rooms[chapter.route[0]],[nx,ny]=rooms[chapter.route[1]];
  skyHeading=Math.atan2(ny-sy,nx-sx);
  p={x:sx+.5,y:sy+.5,a:skyHeading,z:heights[sy][sx],groundZ:heights[sy][sx],jumpTime:0,hp:100,ammo:20};
+ p.safe=[p.x,p.y];
  shots=[];blood.length=0;ferroEffects.clear();heat=flash=hurt=0;
  props=[];playerBolts=[];blasts=[];chargedShot=null;
  propFragments.length=0;
  const [ex,ey]=rooms[chapter.route.at(-1)];
  exitPoint=[ex+2.5,ey+.5];
- items=[[...exitPoint,'exit'],[secretX+5*secretSide+.5,secretY+2.5,'secret']];
+ items=[[...exitPoint,'exit'],[...secret,'secret']];
  const checkpointIndex=Math.floor(chapter.route.length/2);
  const [cx,cy]=rooms[chapter.route[checkpointIndex]];
  const [tx,ty]=rooms[chapter.route[checkpointIndex+1]];
@@ -206,12 +168,15 @@ function level(index){
 const wall=(x,y)=>grid[Math.floor(y)]?.[Math.floor(x)]!==0;
 const floor=(x,y)=>heights[Math.floor(y)]?.[Math.floor(x)]??0;
 const angle=a=>Math.atan2(Math.sin(a),Math.cos(a));
-function move(o,x,y,r){
- if(!wall(o.x+x+r,o.y+r)&&!wall(o.x+x-r,o.y+r)&&!wall(o.x+x+r,o.y-r)&&!wall(o.x+x-r,o.y-r))o.x+=x;
- if(!wall(o.x+r,o.y+y+r)&&!wall(o.x-r,o.y+y+r)&&!wall(o.x+r,o.y+y-r)&&!wall(o.x-r,o.y+y-r))o.y+=y;
+function move(o,x,y,r,limit=Infinity){
+ const blocked=(px,py)=>wall(px,py)||(limit!==Infinity&&!ferroShip.canStep(heights,px,py,limit));
+ if(!blocked(o.x+x+r,o.y+r)&&!blocked(o.x+x-r,o.y+r)&&!blocked(o.x+x+r,o.y-r)&&!blocked(o.x+x-r,o.y-r))o.x+=x;
+ if(!blocked(o.x+r,o.y+y+r)&&!blocked(o.x-r,o.y+y+r)&&!blocked(o.x+r,o.y+y-r)&&!blocked(o.x-r,o.y+y-r))o.y+=y;
 }
+const pit=(x,y)=>ship?.pits[Math.floor(y)]?.[Math.floor(x)]===1;
 function moveEnemy(e,dx,dy){
  const x=e.x+dx,y=e.y+dy;
+ if(pit(x,y))return;
  if(e===boss&&Math.hypot(x-e.homeX,y-e.homeY)>2.45)return;
  const rise=floor(x,y)-floor(e.x,e.y);
  if(!wall(x,y)&&rise>.23){
@@ -490,7 +455,7 @@ function updateNavigation(){
   const node=queue[i],x=node%mapSize,y=Math.floor(node/mapSize);
   for(const [dx,dy] of neighbors){
    const nx=x+dx,ny=y+dy,next=ny*mapSize+nx;
-   if(grid[ny]?.[nx]!==0||values[next]!==-1)continue;
+   if(grid[ny]?.[nx]!==0||values[next]!==-1||ship?.objects[ny]?.[nx])continue;
    values[next]=values[node]+1;queue.push(next);
   }
  }
@@ -503,8 +468,37 @@ function jumpOffset(remaining){
  return 4*playerJumpHeight*phase*(1-phase);
 }
 function jumpPlayer(){
- if(state!=='playing'||p.jumpTime>0)return;
+ if(state!=='playing'||p.jumpTime>0||p.fall>0)return;
+ p.jumpBase=floor(p.x,p.y);
  p.jumpTime=playerJumpDuration;
+}
+const fallDuration=.36;
+function movePlayer(dx,dy,dt){
+ if(p.fall>0){
+  p.fall=Math.max(0,p.fall-dt);
+  p.z=Math.max(floor(p.x,p.y),p.fallStart-(1-p.fall/fallDuration)**2*1.4);
+  if(p.fall===0){
+   [p.x,p.y]=p.safe;
+   p.z=p.groundZ=floor(p.x,p.y);
+   damage(18);
+   pickupNotice='ESQUERDA DE COBERTA · SALTA PER CREUAR';pickupTime=2.5;
+  }
+  return;
+ }
+ const airborne=p.jumpTime>0;
+ const jumpZ=airborne?p.jumpBase+jumpOffset(p.jumpTime):null;
+ const limit=ship?(airborne?Math.max(floor(p.x,p.y)+.24,jumpZ+.10):floor(p.x,p.y)+.24):Infinity;
+ move(p,dx,dy,.19,limit);
+ const ground=floor(p.x,p.y);
+ p.jumpTime=Math.max(0,p.jumpTime-dt);
+ if(pit(p.x,p.y)&&p.jumpTime===0){
+  p.fall=fallDuration;p.fallStart=p.z;
+  return;
+ }
+ p.groundZ+= (ground-p.groundZ)*Math.min(1,dt*13);
+ const nextZ=p.jumpTime>0?p.jumpBase+jumpOffset(p.jumpTime):p.groundZ;
+ p.z=Math.min(ceiling-.62,Math.max(ground,nextZ));
+ if(ship&&!airborne&&!pit(p.x-.34,p.y)&&!pit(p.x+.34,p.y)&&!pit(p.x,p.y-.34)&&!pit(p.x,p.y+.34))p.safe=[p.x,p.y];
 }
 function enemyAltitude(enemy){
  return enemy===p?p.z+.44:floor(enemy.x,enemy.y)+.48+hopHeight(enemy);
@@ -553,11 +547,7 @@ function update(dt){
  const strafe=+keys.has('d')-keys.has('a')+stickX+padMoveX;
  const speed=dt*(keys.has('shift')?4.7:3.4)/Math.max(1,Math.hypot(forward,strafe));
  const previous=[p.x,p.y];
- move(p,(Math.cos(p.a)*forward-Math.sin(p.a)*strafe)*speed,(Math.sin(p.a)*forward+Math.cos(p.a)*strafe)*speed,.19);
- const ground=floor(p.x,p.y);
- p.groundZ+=(ground-p.groundZ)*Math.min(1,dt*13);
- p.jumpTime=Math.max(0,p.jumpTime-dt);
- p.z=Math.min(ceiling-.62,Math.max(ground,p.groundZ+jumpOffset(p.jumpTime)));
+ movePlayer((Math.cos(p.a)*forward-Math.sin(p.a)*strafe)*speed,(Math.sin(p.a)*forward+Math.cos(p.a)*strafe)*speed,dt);
  if(arena){
   ferroProps.tick(props,wall,p,previous,dt);
   ferroProps.tickFragments(propFragments,wall,dt);
@@ -773,7 +763,11 @@ function blendLight(pixel,color,amount){
 function world(ca,sa,plane,eye){
  const chapter=levels[n],theme=chapter.theme;
  const [wallInk,,roofInk]=palettes[theme];
- const outdoors=!arena&&chapter.outdoors;
+ const outdoors=!arena&&!ship&&chapter.outdoors;
+ const hull=ship&&ferroScenery.shipTiles(),space=ship&&ferroScenery.space();
+ const materials=ferroShip.panelMaterials;
+ const skyRows=space&&Int32Array.from({length:H},(_,y)=>
+  Math.floor((.50-Math.atan((horizon-y)/focal)/Math.PI)*space.height)*space.width);
  const haze=ferroScenery.haze(theme);
  const timeRipple=settings.effects?Math.floor(time*13):0;
  depth.fill(Infinity);
@@ -787,6 +781,8 @@ function world(ca,sa,plane,eye){
  }
  for(let x=0;x<W;x++){
   const u=(2*x/W-1)*plane,dx=ca-sa*u,dy=sa+ca*u;
+  const heading=space?(.40+(p.a+Math.atan(u)-skyHeading)/(Math.PI*2)):0;
+  const skyColumn=space?Math.floor((heading-Math.floor(heading))*space.width):0;
   let ix=Math.floor(p.x),iy=Math.floor(p.y),near=.004;
   const ax=Math.abs(1/dx),ay=Math.abs(1/dy),sx=Math.sign(dx),sy=Math.sign(dy);
   let tx=sx===0?Infinity:(sx<0?p.x-ix:ix+1-p.x)*ax;
@@ -794,6 +790,9 @@ function world(ca,sa,plane,eye){
   for(let cell=0;cell<mapSize*2;cell++){
    const side=ty<tx,d=Math.max(.004,Math.min(tx,ty));
    const z=heights[iy][ix];
+   const fromObject=ship?.objects[iy][ix],fromPit=ship?.pits[iy][ix];
+   const caution=ship&&!fromPit&&!fromObject&&((ship.pits[iy]?.[ix-1]||0)|(ship.pits[iy]?.[ix+1]||0)<<1|
+    (ship.pits[iy-1]?.[ix]||0)<<2|(ship.pits[iy+1]?.[ix]||0)<<3);
    const face=(horizon+(eye-z)*focal/d);
    const roof=horizon+(eye-ceiling)*focal/d;
    const top=horizon+(eye-z)*focal/near;
@@ -804,6 +803,22 @@ function world(ca,sa,plane,eye){
      const index=y*W+x;
      if(dist<=0||dist>=depth[index])continue;
      const wx=p.x+dx*dist,wy=p.y+dy*dist;
+     if(hull){
+      const panel=isRoof?materials.ceiling:fromObject||materials.floor;
+      const density=fromObject&&!isRoof?256:64;
+      const tx=Math.floor(wx*density)&255,ty=Math.floor(wy*density)&255;
+      const powered=isRoof||!fromPit;
+      let paint=litWall(hull[panel][ty*256+tx],powered?.47+.56/(1+dist*.16):.18,
+       lightAt(wx,wy),powered?0:.52,haze);
+      if(!isRoof&&caution){
+       const fx=wx-ix,fy=wy-iy;
+       if((caution&1&&fx<.19)||(caution&2&&fx>.81)||(caution&4&&fy<.19)||(caution&8&&fy>.81)){
+        paint=blendLight(paint,((Math.floor((wx+wy)*9)&1)?[255,178,52]:[28,23,26]),.77);
+       }
+      }
+      pixels[index]=paint;depth[index]=dist;
+      continue;
+     }
      const j=Math.floor(wx*32),k=Math.floor(wy*32);
      const room=arena?ferroArena.roomAt(wx,wy):0;
      const material=arena?arenaMaterials[room]:theme;
@@ -835,6 +850,8 @@ function world(ca,sa,plane,eye){
    if(!outdoors)span(horizon+(eye-ceiling)*focal/near,roof,ceiling,true);
    if(side){iy+=sy;ty+=ay}else{ix+=sx;tx+=ax}
    const solid=grid[iy]?.[ix]!==0,next=heights[iy]?.[ix]??z;
+   const faceBit=side?(sy>0?4:8):(sx>0?1:2);
+   const viewport=solid&&(ship?.windows[iy]?.[ix]&faceBit);
    if(solid||next!==z){
     const edge=side?p.x+dx*d:p.y+dy*d;
     const stripe=Math.floor((edge-Math.floor(edge))*64);
@@ -850,7 +867,10 @@ function world(ca,sa,plane,eye){
     const fog=outdoors?Math.min(.62,d*.032):0;
     const style=((ix*19+iy*11)%3+3)%3;
     const u=(stripe*2+(Math.floor((edge-Math.floor(edge))*128)&1))&127;
-    const wallTile=solid?wallTextures[sector?.wall??material]?.[style]:null;
+    const objectPanel=next>z?ship?.objects[iy]?.[ix]:fromObject;
+    const overPit=!solid&&(fromPit||ship?.pits[iy]?.[ix]);
+    const wallTile=hull&&(solid||objectPanel||overPit)?hull[solid?materials.bulkhead:objectPanel||materials.cargo]:
+     solid?wallTextures[sector?.wall??material]?.[style]:null;
     const column=Math.floor((edge-Math.floor(edge))*wallTileSize);
     const illumination=1.12/(1+d*.106)*(side?.78:1);
     const faceLight=lightAt(p.x+dx*(d-.025),p.y+dy*(d-.025));
@@ -861,9 +881,17 @@ function world(ca,sa,plane,eye){
      if(d>=depth[index])continue;
      const altitude=eye-(y-horizon)*d/focal;
      const rim=solid&&outdoors&&high-altitude<.045;
+     if(viewport&&altitude>z+.28&&altitude<high-.39&&column>12&&column<243){
+      const trim=altitude<z+.34||altitude>high-.45||column<18||column>237;
+      const color=space?space.colors[skyRows[y]+skyColumn]:shade([12,17,39],1);
+      pixels[index]=trim?blendLight(color,[67,114,145],.62):blendLight(color,[63,117,157],.075);
+      depth[index]=d;
+      continue;
+     }
      if(wallTile){
       const row=Math.max(0,Math.min(wallTileSize-1,Math.floor((high-altitude)*wallTileSize/(high-low))));
-      const paint=litWall(wallTile[row*wallTileSize+column],illumination*(post?.79:1),faceLight,fog,haze);
+      const light=ship?(overPit?.44:.37+illumination*.72):illumination*(post?.79:1);
+      const paint=litWall(wallTile[row*wallTileSize+column],light,faceLight,fog,haze);
       pixels[index]=rim?blendLight(paint,haze,.45):paint;
       depth[index]=d;
       continue;
@@ -1144,7 +1172,7 @@ function draw(){
   if(arena)ferroEffects.arena(ctx,project,arenaCores,settings.effects?arenaPulses:[2,2,2,2],time,
    settings.particles,settings.quality==='detail',p);
  }
- if(!arena&&levels[n].outdoors&&settings.particles&&settings.effects){
+ if(!arena&&!ship&&levels[n].outdoors&&settings.particles&&settings.effects){
   ferroScenery.weather(ctx,W,H,depth,time,p.a,levels[n].theme);
  }
  drawAtmosphere(ca,sa,plane,eye,core);
@@ -1379,7 +1407,7 @@ function leaveArena(){
  $('menuArenaExit').hidden=true;$('menuRestart').hidden=true;
  $('start').dataset.level=worldProgress[0];
  $('start').textContent=worldProgress[0]>0?'Continua la campanya':'Inicia la campanya';
- $('intro').textContent='Travessa cinc mons, venç els guardians i reuneix les claus del Llindar.';
+ $('intro').textContent='Travessa la nau, salta per sobre les bretxes i recupera les claus del Llindar.';
  accountButton.disabled=false;
 }
 async function startArena(e){
@@ -1399,7 +1427,7 @@ async function startArena(e){
  }finally{
   loadingEnemyArt=false;button.disabled=start.disabled=false;
  }
- arena=true;n=0;
+ arena=true;n=0;ship=null;
  ferroEnemySprites.clear();
  const map=ferroArena.layout(mapSize,types);
  arenaCores=map.cores;
@@ -1435,7 +1463,7 @@ $('start').onclick=e=>{
  showMenuPanel();$('menuRestart').hidden=true;
  if(state==='checkpoint'){
   attempt.deaths++;
-  Object.assign(p,checkpoint,{hp:100,jumpTime:0});
+  Object.assign(p,checkpoint,{hp:100,jumpTime:0,fall:0,safe:[checkpoint.x,checkpoint.y]});
   p.z=p.groundZ=floor(p.x,p.y);
   shots.length=playerBolts.length=blasts.length=0;
   chargedShot=null;

@@ -6,6 +6,44 @@ const ferroScenery=(()=>{
  const maps=new Map();
  const beams=new Map();
  const tau=Math.PI*2;
+ let space=null, shipTiles=null, loadingShip=false;
+
+ function prepareSpace(ready){
+  if(loadingShip)return;
+  loadingShip=true;
+  for(const [file,read] of [['./assets/skies/orbit.webp',loadOrbit],['./assets/textures/ship-deck.webp',loadDeck]]){
+   const image=new Image();
+   image.onload=()=>{
+    const canvas=document.createElement('canvas');
+    canvas.width=image.naturalWidth;canvas.height=image.naturalHeight;
+    const ctx=canvas.getContext('2d',{willReadFrequently:true});
+    ctx.drawImage(image,0,0);
+    read(ctx,canvas.width,canvas.height);
+    ready();
+   };
+   image.src=file;
+  }
+ }
+
+ function loadOrbit(ctx,width,height){
+  const {data}=ctx.getImageData(0,0,width,height);
+  space={width,height,colors:new Uint32Array(data.buffer)};
+ }
+
+ function loadDeck(ctx,width,height){
+  const size=256;
+  if(width!==3*size||height!==2*size)return;
+  shipTiles=Array.from({length:6},(_,i)=>{
+   const {data}=ctx.getImageData(i%3*size,Math.floor(i/3)*size,size,size);
+   const tile=new Uint32Array(data.buffer);
+   for(let j=0;j<tile.length;j++){
+    const color=tile[j],r=color&255,g=color>>>8&255,b=color>>>16&255;
+    const emissive=i===4?Math.max(0,r-b-55):i===5?Math.max(0,Math.min(g,b)-r-45):0;
+    tile[j]=(color&0xffffff)|(Math.min(emissive,95)<<24);
+   }
+   return tile;
+  });
+ }
 
  function load(theme,ready){
   if(maps.has(theme))return;
@@ -103,5 +141,5 @@ const ferroScenery=(()=>{
  }
 
  const haze=theme=>skies[theme][2];
- return {load,sky,weather,haze,beam};
+ return {load,sky,weather,haze,beam,prepareSpace,space:()=>space,shipTiles:()=>shipTiles};
 })();

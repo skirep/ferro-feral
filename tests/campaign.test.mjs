@@ -25,8 +25,48 @@ function memoryStorage() {
 }
 
 test('the game loads the campaign before parsing its entry script', () => {
-  assert.match(html, /<script src="\.\/campaign\.js"><\/script>(?:\s*<script src="[^"]+"><\/script>)*\s*<script>/);
+  assert.ok(scripts.indexOf('assets/levels/ship.js') < scripts.indexOf('campaign.js'));
+  assert.match(html, /<script src="\.\/campaign\.js(?:\?[^\"]+)?"><\/script>(?:\s*<script src="[^"]+"><\/script>)*\s*<script>/);
   assert.doesNotThrow(() => new Script(source + '\n' + game));
+});
+
+test('all decks have walkable rooms, real windows and mandatory jump gaps', () => {
+  const ship = runInNewContext(source + '\nferroShip');
+  const directions=[[1,0],[-1,0],[0,1],[0,-1]];
+  for(const chapter of levels){
+    const {deck,grid,heights,gaps,pits,objects,windows}=ship.layout(chapter);
+    assert.ok(gaps.length>0,chapter.name);
+    assert.ok(deck.some(room=>(room.rx*2+1)*(room.ry*2+1)>=81),chapter.name);
+    assert.ok(objects.flatMap(row=>Array.from(row)).filter(Boolean).length>=8,chapter.name);
+    const start=deck[0],goal=deck.at(-1);
+    const crosses=(allowJump)=>{
+      const seen=new Set([start.y*ship.mapSize+start.x]);
+      const queue=[[start.x,start.y]];
+      for(const [x,y] of queue){
+        if(x===goal.x&&y===goal.y)return true;
+        for(const [dx,dy] of directions){
+          let nx=x+dx,ny=y+dy;
+          if(allowJump&&pits[ny]?.[nx]){nx+=dx;ny+=dy}
+          const key=ny*ship.mapSize+nx;
+          if(grid[ny]?.[nx]!==0||pits[ny]?.[nx]||objects[ny]?.[nx]||seen.has(key))continue;
+          if(Math.abs(heights[ny][nx]-heights[y][x])>.24)continue;
+          seen.add(key);queue.push([nx,ny]);
+        }
+      }
+      return false;
+    };
+    assert.equal(crosses(false),false,chapter.name);
+    assert.equal(crosses(true),true,chapter.name);
+    assert.ok(windows.some(row=>row.some(Boolean)),chapter.name);
+    for(const {x,y,dx,dy,lane} of gaps){
+      for(let k=-lane;k<=lane;k++){
+        const gx=x+dy*k,gy=y+dx*k;
+        assert.equal(pits[gy][gx],1,chapter.name);
+        assert.equal(grid[gy-dy][gx-dx],0,chapter.name);
+        assert.equal(heights[gy-dy][gx-dx],heights[gy+dy][gx+dx],chapter.name);
+      }
+    }
+  }
 });
 
 test('each map connects distinct, orthogonally adjacent rooms', () => {
