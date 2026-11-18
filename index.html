@@ -5,9 +5,9 @@
 <title>Ferro Feral — Dejoco Arts</title>
 <meta name="description" content="FPS retro de Dejoco Arts amb 25 nivells dins una nau espacial.">
 <style>
-*{box-sizing:border-box}body{margin:0;background:#100c13;color:#fff0d0;font:16px monospace;overflow:hidden;touch-action:none}canvas{width:100vw;height:100dvh;object-fit:contain;image-rendering:pixelated;display:block}#menu{position:fixed;inset:0;display:grid;place-content:center;padding:24px;background:linear-gradient(90deg,#130c16ee,#35192166)}#menu[hidden]{display:none}h1{font-size:clamp(48px,11vw,144px);line-height:.8;margin:16px 0;color:#ff613f;text-shadow:4px 5px #5c211e;letter-spacing:-.09em}p{max-width:48ch;line-height:1.5}button{background:#ff6847;color:#160e17;border:0;padding:14px 20px;font:bold 16px monospace;cursor:pointer}#touch{display:none;position:fixed;inset:0;pointer-events:none;user-select:none;-webkit-user-select:none}
+*{box-sizing:border-box}body{margin:0;background:#100c13;color:#fff0d0;font:16px monospace;overflow:hidden;touch-action:none}#screen{position:fixed;inset:0;width:100vw;height:100dvh;image-rendering:pixelated;display:block}#menu{position:fixed;inset:0;display:grid;place-content:center;padding:24px;background:linear-gradient(90deg,#130c16ee,#35192166)}#menu[hidden]{display:none}h1{font-size:clamp(48px,11vw,144px);line-height:.8;margin:16px 0;color:#ff613f;text-shadow:4px 5px #5c211e;letter-spacing:-.09em}p{max-width:48ch;line-height:1.5}button{background:#ff6847;color:#160e17;border:0;padding:14px 20px;font:bold 16px monospace;cursor:pointer}#touch{display:none;position:fixed;inset:0;pointer-events:none;user-select:none;-webkit-user-select:none}
 @media(any-pointer:coarse){body.playing #touch{display:block}}
-#joystick,#touchActions{position:absolute;bottom:max(16px,env(safe-area-inset-bottom))}
+#joystick,#touchActions{position:absolute;bottom:calc(38px + env(safe-area-inset-bottom))}
 #joystick{--diameter:clamp(112px,min(34vw,45dvh),172px);left:max(16px,env(safe-area-inset-left));width:var(--diameter);aspect-ratio:1;border-radius:50%;border:3px solid #f0bc9d99;background:#160f1cbd;box-shadow:inset 0 0 0 9px #10091377,0 5px 20px #0007;pointer-events:auto;touch-action:none}
 #joystick::before{content:"";position:absolute;inset:23%;border:1px dashed #fad0ae77;border-radius:50%}
 #stick{position:absolute;left:50%;top:50%;width:43%;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%) translate(var(--stick-x,0px),var(--stick-y,0px));background:#e77552;border:3px solid #ffd3ab;box-shadow:0 5px 12px #0009;pointer-events:none}
@@ -31,7 +31,7 @@
 #bestiaryViews{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
 #bestiaryViews figure{margin:0;min-width:0;background:#231b28;border:1px solid #64474a;text-align:center}
 #bestiaryViews figure:nth-child(5){border-color:#ff6847}
-#bestiaryViews canvas{width:100%;height:auto;aspect-ratio:1;background:radial-gradient(ellipse at 50% 80%,#353c45,#1b1721 70%)}
+#bestiaryViews canvas{display:block;image-rendering:pixelated;width:100%;height:auto;aspect-ratio:1;background:radial-gradient(ellipse at 50% 80%,#353c45,#1b1721 70%)}
 #bestiaryViews figcaption{padding:5px 2px;color:#ffd3b1;font-size:clamp(9px,2.5vw,13px)}
 #bestiaryArena{font-size:13px;color:#acdacf}
 @media(max-width:420px){#menu:has(#bestiaryPanel:not([hidden])){padding:12px}#menuPanel:has(#bestiaryPanel:not([hidden])){padding:10px}#bestiaryViews{gap:4px}}
@@ -106,6 +106,7 @@ body.playing #photoButton{display:block}
 <script src="./assets/sputnik-wildlife.js"></script>
 <script src="./assets/sputnik-sun.js?v=light"></script>
 <script src="./assets/photo.js"></script>
+<script src="./assets/viewport.js"></script>
 <script src="./campaign.js?v=sputnik"></script>
 <script src="./account.js"></script>
 <script src="./supabase-config.js"></script>
@@ -127,7 +128,7 @@ let W=576,H=324;
 ctx.imageSmoothingEnabled=false;
 const mapSize=ferroShip.mapSize;
 const keys=new Set();
-const viewPlane=.69;
+let projection,hud;
 let photo=null,viewCamera;
 let attempt,checkpoint;
 let n=0,grid,heights,foes,shots,items,p,weapon,heat,flash,hurt,exitPoint,lamps,ceiling,pickupNotice,pickupTime,boss,keyHeld,keyDropped;
@@ -737,15 +738,23 @@ let settings={quality:'balanced',particles:true,effects:!matchMedia('(prefers-re
 try{settings={...settings,...JSON.parse(localStorage.getItem('ferro-options')||'{}')}}catch{}
 settings.fxVolume=Number.isFinite(settings.fxVolume)?Math.max(0,Math.min(1,settings.fxVolume)):1;
 let redraw=true;
-function setRenderSize(width){
- W=width;H=W*9/16;
+function setRenderSize(width,height){
+ if(W===width&&H===height&&frameBuffer)return;
+ W=width;H=height;
+ projection=ferroViewport.projection(W,H);hud=ferroViewport.ui(W,H);
  screen.width=W;screen.height=H;ctx.imageSmoothingEnabled=false;
  depth=new Float32Array(W*H);frameBuffer=ctx.createImageData(W,H);
- pixels=new Uint32Array(frameBuffer.data.buffer);horizon=H/2;focal=W*270/576;
+ pixels=new Uint32Array(frameBuffer.data.buffer);horizon=H/2;focal=projection.focal;
  redraw=true;
 }
-function applyQuality(){setRenderSize(qualities[settings.quality]??qualities.balanced)}
+function applyQuality(){
+ const bounds=screen.getBoundingClientRect?.();
+ const {width,height}=ferroViewport.size(qualities[settings.quality]??qualities.balanced,bounds?.width,bounds?.height);
+ setRenderSize(width,height);
+}
 applyQuality();
+window.addEventListener('resize',applyQuality);
+if(typeof ResizeObserver==='function')new ResizeObserver(applyQuality).observe(screen);
 const palettes=ferroSurfaces.map(({wall,floor,ceiling,accent})=>[wall,floor,ceiling,accent]);
 
 function shade(rgb,light){
@@ -1120,7 +1129,10 @@ function currentViewmodel(){
  return weaponViewmodel(weapon,motion,heavy);
 }
 function cameraEye(){return p.z+.5+Math.sin(elapsed*2)*.018}
-function worldMuzzle(){return muzzleInWorld(currentViewmodel().screenMuzzle,p,cameraEye(),viewPlane,H,focal)}
+function worldMuzzle(){
+ const screenMuzzle=ferroViewport.muzzle(currentViewmodel().screenMuzzle,hud);
+ return muzzleInWorld(screenMuzzle,p,cameraEye(),projection.plane,H,projection.focal);
+}
 function drawWeapon(){
  const gun=guns[weapon];
  const firing=heat>0&&flashWeapon===weapon;
@@ -1153,8 +1165,8 @@ function drawWeapon(){
 function draw(){
  viewCamera=photo??p;
  const zoom=photo?.zoom??1;
- const ca=Math.cos(viewCamera.a),sa=Math.sin(viewCamera.a),plane=viewPlane/zoom;
- focal=W*270/576*zoom;
+ const ca=Math.cos(viewCamera.a),sa=Math.sin(viewCamera.a),plane=projection.plane/zoom;
+ focal=projection.focal*zoom;
  horizon=H/2+Math.tan(photo?.pitch??0)*focal;
  const eye=photo?.z??cameraEye();
  const core=boss.hp>0?boss:null;
@@ -1304,20 +1316,22 @@ function draw(){
  drawAtmosphere(ca,sa,plane,eye,core);
  if(photo)return;
  ctx.save();
- ctx.scale(W/480,H/270);
- drawWeapon();
- if(hurt>0){ctx.fillStyle='rgba(255,36,40,'+hurt*.7+')';ctx.fillRect(0,0,480,270)}
- ctx.fillStyle='#fff0d0';ctx.fillRect(240-1,135-1,2,2);
+ const {scale,w,h,x,y}=hud;
+ ctx.scale(scale,scale);
+ ctx.save();ctx.translate(x,y);drawWeapon();ctx.restore();
+ if(hurt>0){ctx.fillStyle='rgba(255,36,40,'+hurt*.7+')';ctx.fillRect(0,0,w,h)}
+ ctx.fillStyle='#fff0d0';ctx.fillRect(w/2-1,h/2-1,2,2);
  const themeColor=island?'#f4dfa5':arena?ferroArena.sectors[arenaRoom].color:ferroSurfaces[levels[n].theme].spark;
- ctx.fillStyle='#08121de8';ctx.fillRect(0,245,480,25);
- ctx.globalAlpha=.40;ctx.fillStyle=themeColor;ctx.fillRect(0,245,480,1);ctx.globalAlpha=1;
+ ctx.save();ctx.translate(0,y);
+ ctx.fillStyle='#08121de8';ctx.fillRect(0,245,w,25);
+ ctx.globalAlpha=.40;ctx.fillStyle=themeColor;ctx.fillRect(0,245,w,1);ctx.globalAlpha=1;
  ctx.font='bold 10px monospace';ctx.fillStyle='#ffab86';ctx.fillText('VIDA '+p.hp,10,257);
  ctx.fillStyle='#51323e';ctx.fillRect(10,261,53,2);
  ctx.fillStyle='#ff835e';ctx.fillRect(10,261,53*p.hp/100,2);
  ctx.fillStyle='#fff0d0';ctx.fillText((weapon+1)+' '+guns[weapon].name+' · '+p.ammo,78,259,171);
  ctx.fillStyle=themeColor;ctx.textAlign='right';
- ctx.fillText(arena?ferroArena.sectors[arenaRoom].name:(levels[n].theme+1)+'.'+(levels[n].stage+1)+'  '+levels[n].name,470,259,210);
- ctx.textAlign='left';
+ ctx.fillText(arena?ferroArena.sectors[arenaRoom].name:(levels[n].theme+1)+'.'+(levels[n].stage+1)+'  '+levels[n].name,w-10,259,210);
+ ctx.textAlign='left';ctx.restore();
  const objective=arena?'ENEMICS VIUS · '+arenaAlive.reduce((total,count)=>total+count,0)+'/'+foes.length
   :keyHeld?'VES A LA SORTIDA':keyDropped?'RECULL LA CLAU':'DERROTA EL CAP I RECULL LA CLAU';
  const objectiveWidth=Math.ceil(ctx.measureText(objective).width)+17;
@@ -1329,12 +1343,15 @@ function draw(){
   ctx.fillStyle='#fa987e';ctx.fillText(levels[n].bossName,15,33,148);
   ctx.fillRect(15,37,148*boss.hp/boss.maxHp,2);
  }
- if(arena)drawArenaMap();
+ if(arena){
+  ctx.save();ctx.translate(w-480,62);drawArenaMap();ctx.restore();
+ }
  if(pickupTime>0){
+  ctx.save();ctx.translate(x,(h-270)/2);
   ctx.fillStyle='#160e19ee';ctx.fillRect(112,178,256,26);
   ctx.fillStyle=guns[weapon].color;ctx.fillRect(112,178,256,2);
   ctx.fillStyle='#fff0cd';ctx.textAlign='center';
-  ctx.fillText(pickupNotice==='CLAU DE SORTIDA'?'CLAU DE SORTIDA RECOLLIDA':pickupNotice,240,195);ctx.textAlign='left';
+  ctx.fillText(pickupNotice==='CLAU DE SORTIDA'?'CLAU DE SORTIDA RECOLLIDA':pickupNotice,240,195);ctx.restore();
  }
  ctx.restore();
 }
@@ -1719,16 +1736,19 @@ $('photoExit').onclick=closePhoto;
 $('photoZoom').oninput=e=>{if(photo){photo.zoom=Number(e.target.value);redraw=true}};
 $('photoSave').onclick=()=>{
  if(!photo)return;
- const width=W;let png;
+ const oldWidth=W,oldHeight=H;
+ const bounds=screen.getBoundingClientRect?.();
+ const {width,height}=ferroViewport.size(1920,bounds?.width??W,bounds?.height??H);
+ let png;
  try{
-  setRenderSize(1920);draw();png=screen.toDataURL('image/png');
+  setRenderSize(width,height);draw();png=screen.toDataURL('image/png');
  }catch{
   $('photoStatus').textContent='No s’ha pogut desar la imatge.';
   return;
- }finally{setRenderSize(width)}
+ }finally{setRenderSize(oldWidth,oldHeight)}
  const link=document.createElement('a');
  link.href=png;link.download='ferro-feral-'+Date.now()+'.png';link.click();
- $('photoStatus').textContent='Captura PNG de 1920 × 1080';
+ $('photoStatus').textContent='Captura PNG de '+width+' × '+height;
 };
 for(const button of ($('photoMove').querySelectorAll?.('button')??[])){
  button.addEventListener('pointerdown',event=>{

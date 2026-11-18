@@ -515,3 +515,20 @@ test('island daylight responds to both surface orientation and shade', () => {
   assert.ok(sample(1,1)>sample(1,-1));
   assert.ok(sample(1,-1)>sample(.50,-1));
 });
+
+test('viewport and photo dimensions track portrait, landscape and ultrawide screens', () => {
+  const view=runInNewContext(source+'\nferroViewport');
+  for(const [width,height] of [[360,800],[1920,1080],[2560,1080],[1024,768]]){
+    const game=view.size(576,width,height),photo=view.size(1920,width,height);
+    assert.equal(Math.max(game.width,game.height),576);
+    assert.equal(Math.max(photo.width,photo.height),1920);
+    assert.ok(Math.abs(game.width-game.height*width/height)<1.5);
+    assert.ok(Math.abs(photo.width-photo.height*width/height)<1.5);
+    const ui=view.ui(game.width,game.height);
+    const muzzle=view.muzzle([240,270],ui);
+    assert.ok(Math.abs(muzzle[0]-240)<1e-8);
+    assert.ok(Math.abs(muzzle[1]-270)<1e-8);
+  }
+  assert.equal(view.projection(576,324).plane,.69);
+  assert.equal(view.projection(576,324).focal,270);
+});
