@@ -73,10 +73,10 @@ test('all campaign enemy and weapon sprite files exist', () => {
 });
 
 test('the four arena rooms each have two exits and every enemy has two distinct spawns', () => {
-  const { grid, spawns, start, types } = runInNewContext(source + [
+  const { grid, spawns, start, types, cores, roomAt } = runInNewContext(source + [
     read('../assets/enemies/catalog.js'),
     read('../assets/levels/arena.js'),
-    '({...ferroArena.layout(37, types), types})'
+    '({...ferroArena.layout(37, types), types, roomAt:ferroArena.roomAt})'
   ].join('\n'));
   assert.equal(spawns.length, types.length * 2);
   assert.equal(new Set(spawns.map(({x, y}) => x + ':' + y)).size, spawns.length);
@@ -87,9 +87,13 @@ test('the four arena rooms each have two exits and every enemy has two distinct 
     assert.equal(Math.abs(copies[0].room - copies[1].room), 2, type.name);
     for (const {x, y} of copies) assert.equal(grid[Math.floor(y)][Math.floor(x)], 0, type.name);
   }
-  for (const [x, y] of [[9,9], [27,9], [27,27], [9,27]]) {
+  assert.equal(cores.length, 4);
+  for (const [room, [cx, cy]] of cores.entries()) {
+    const x = Math.floor(cx), y = Math.floor(cy);
+    assert.equal(roomAt(cx, cy), room);
+    assert.equal(grid[y][x], 0);
     const exits = [[x-7,y], [x+7,y], [x,y-7], [x,y+7]];
-    assert.equal(exits.filter(([cx, cy]) => grid[cy][cx] === 0).length, 2);
+    assert.equal(exits.filter(([exitX, exitY]) => grid[exitY][exitX] === 0).length, 2);
   }
 });
 

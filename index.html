@@ -39,7 +39,7 @@
 </style>
 <canvas id="screen" width="576" height="324" aria-label="Ferro Feral"></canvas>
 <section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">Travessa cinc mons, venç els guardians i reuneix les claus del Llindar.</p><p id="accountStatus" role="status" hidden></p><div id="menuActions"><button id="start">Inicia la campanya</button><button id="menuArena">Arena de quatre sales</button><button id="menuArenaExit" hidden>Surt de l’arena</button><button id="menuCampaign">Tria un món</button><button id="menuBestiary">Bestiari 360°</button><button id="accountButton" hidden>Entra amb Google</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
-<section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><label>Món <select id="worldSelect"></select></label><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label>Volum dels efectes <input id="fxVolume" type="range" min="0" max="1" step=".05"></label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma Q per saltar i Esc per pausar.</p><p><b>Mòbil</b> · Bolet per moure’t, arrossega la vista per girar i toca FOC, Salt o Arma.</p><p><b>Comandament</b> · Estic esquerre per moure’t, dret per girar, RT per disparar, A per saltar, Y per canviar d’arma i Menú per pausar o continuar.</p></div>
+<section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><label>Món <select id="worldSelect"></select></label><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label>Volum dels efectes <input id="fxVolume" type="range" min="0" max="1" step=".05"></label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label><label><input id="effectsOption" type="checkbox" checked> Esteles, impactes i llum animada</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–5 per canviar d’arma Q per saltar i Esc per pausar.</p><p><b>Mòbil</b> · Bolet per moure’t, arrossega la vista per girar i toca FOC, Salt o Arma.</p><p><b>Comandament</b> · Estic esquerre per moure’t, dret per girar, RT per disparar, A per saltar, Y per canviar d’arma i Menú per pausar o continuar.</p></div>
 <div id="bestiaryPanel" hidden>
  <h2>Bestiari 360°</h2>
  <div id="bestiaryControls">
@@ -75,9 +75,10 @@
 <script src="./assets/enemies/catalog.js?v=reinforcements1"></script>
 <script src="./assets/enemies/sprites.js?v=direction-review1"></script>
 <script src="./assets/combat.js"></script>
-<script src="./assets/levels/arena.js?v=2"></script>
+<script src="./assets/levels/arena.js?v=3"></script>
 <script src="./assets/music.js"></script>
 <script src="./assets/enemies/bestiary.js"></script>
+<script src="./assets/effects.js"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
@@ -92,6 +93,7 @@ const owned=new Set([0]);
 const blood=[];
 const bloodColors=['#6a101d','#a0192b','#db2837','#ff514a'];
 let state='menu',time=0,elapsed=0,roomDistance,arena=false;
+let arenaCores=[];
 let audio, music, fx, step=0, nextBeat=0, muted=false;
 function level(index){
  n=index;
@@ -156,7 +158,7 @@ function level(index){
  foes.push(boss);keyHeld=keyDropped=false;
  const [sx,sy]=rooms[chapter.route[0]],[nx,ny]=rooms[chapter.route[1]];
  p={x:sx+.5,y:sy+.5,a:Math.atan2(ny-sy,nx-sx),z:heights[sy][sx],groundZ:heights[sy][sx],jumpTime:0,hp:100,ammo:20};
- shots=[];blood.length=0;heat=flash=hurt=0;
+ shots=[];blood.length=0;ferroEffects.clear();heat=flash=hurt=0;
  const [ex,ey]=rooms[chapter.route.at(-1)];
  exitPoint=[ex+2.5,ey+.5];
  items=[[...exitPoint,'exit'],[secretX+5*secretSide+.5,secretY+2.5,'secret']];
@@ -318,11 +320,33 @@ function fire(){
  }).sort((a,b)=>Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y));
  attempt.shots++;
  if(targets.length)attempt.hits++;
+ if(settings.effects){
+  const ca=Math.cos(p.a),sa=Math.sin(p.a);
+  const source=[p.x+ca*.39-sa*.10,p.y+sa*.39+ca*.10,p.z+.32];
+  const target=targets[0];
+  let end;
+  if(target){
+   end=[target.x,target.y,floor(target.x,target.y)+.52+hopHeight(target)];
+  }else{
+   let closest=0,farthest=gun.range;
+   for(let i=0;i<9;i++){
+    const middle=(closest+farthest)/2;
+    if(ray(p.x,p.y,ca,sa,p.z+.50,p.z+.50,middle))closest=middle;
+    else farthest=middle;
+   }
+   const hitWall=farthest<gun.range;
+   const distance=Math.max(.15,closest-.025);
+   end=[p.x+ca*distance,p.y+sa*distance,p.z+.50];
+   if(hitWall)ferroEffects.impact(...end,gun.color);
+  }
+  ferroEffects.trace(source,end,gun.color,weapon===1||weapon>=3);
+ }
  targets.slice(0,gun.targets).forEach((e,i)=>{
   const distance=Math.hypot(e.x-p.x,e.y-p.y);
   const drop=weapon===1?Math.max(.30,1-distance*.13):1;
   const impact=gun.damage*drop/(1+i*.42)*(e.type.kind==='guard'&&!e.wind?.55:1);
   e.hp-=impact;sprayBlood(e,impact);
+  if(settings.effects)ferroEffects.impact(e.x,e.y,enemyAltitude(e),gun.color,weapon===4);
   e.hit=hitDuration;
   if(weapon===4){
    for(const other of foes){
@@ -376,6 +400,7 @@ function hitArenaTarget(target,source,amount){
 function update(dt){
  attempt.seconds+=dt;
  tickBlood(dt);
+ ferroEffects.tick(dt);
  const turn=+keys.has('arrowright')-keys.has('arrowleft')+padTurn;
  p.a+=turn*dt*2.3;
  const forward=+keys.has('w')+keys.has('arrowup')-keys.has('s')-keys.has('arrowdown')-stickY-padMoveY;
@@ -448,15 +473,27 @@ function update(dt){
  }
  for(const s of shots){
   s.ttl-=dt;s.x+=Math.cos(s.a)*dt*s.speed;s.y+=Math.sin(s.a)*dt*s.speed;s.altitude+=s.slope*dt*s.speed;
-  if(wall(s.x,s.y)||floor(s.x,s.y)>=s.altitude||s.altitude>=ceiling)s.ttl=0;
+  if(wall(s.x,s.y)||floor(s.x,s.y)>=s.altitude||s.altitude>=ceiling){
+   if(settings.effects&&s.ttl>0&&Math.hypot(p.x-s.x,p.y-s.y)<10){
+    const back=dt*s.speed;
+    ferroEffects.impact(s.x-Math.cos(s.a)*back,s.y-Math.sin(s.a)*back,s.altitude-s.slope*back,s.color);
+   }
+   s.ttl=0;
+  }
   if(arena&&s.ttl>0){
    const victim=ferroArena.shotTarget(s,foes,enemyAltitude);
-   if(victim){hitArenaTarget(victim,s.owner,12);s.ttl=0}
+   if(victim){
+    hitArenaTarget(victim,s.owner,12);s.ttl=0;
+    if(settings.effects&&Math.hypot(p.x-s.x,p.y-s.y)<11)ferroEffects.impact(s.x,s.y,s.altitude,s.color);
+   }
   }
   if(s.ttl>0&&Math.hypot(p.x-s.x,p.y-s.y)<.28&&Math.abs(p.z+.44-s.altitude)<.50){damage(12);s.ttl=0}
  }
  shots=shots.filter(s=>s.ttl>0);
- if(!arena&&boss.hp<=0&&!keyDropped){items.push([boss.x,boss.y,'key']);keyDropped=true}
+ if(!arena&&boss.hp<=0&&!keyDropped){
+  items.push([boss.x,boss.y,'key']);keyDropped=true;
+  if(settings.effects)ferroEffects.impact(boss.x,boss.y,floor(boss.x,boss.y)+.57,'#ffbd58',true);
+ }
  pickupTime=Math.max(0,pickupTime-dt);
  items=items.filter(([x,y,kind,id])=>{
   if(Math.hypot(p.x-x,p.y-y)>(kind==='weapon'?.8:.55))return true;
@@ -489,7 +526,7 @@ function update(dt){
 }
 let depth,frameBuffer,pixels,horizon,focal;
 const qualities={fluid:416,balanced:576,detail:704};
-let settings={quality:'balanced',particles:true,music:true,fxVolume:1};
+let settings={quality:'balanced',particles:true,effects:!matchMedia('(prefers-reduced-motion: reduce)').matches,music:true,fxVolume:1};
 try{settings={...settings,...JSON.parse(localStorage.getItem('ferro-options')||'{}')}}catch{}
 settings.fxVolume=Number.isFinite(settings.fxVolume)?Math.max(0,Math.min(1,settings.fxVolume)):1;
 let redraw=true;
@@ -516,6 +553,7 @@ function lightAt(x,y){
  return (row*lightSize+col)*3;
 }
 const glowColors=ferroSurfaces.map(surface=>surface.glow);
+const arenaMaterials=[1,4,2,3];
 const boltColor=[[102,229,255],[255,189,81],[255,212,101],[95,255,178],[255,91,65]];
 const reactorPulse=()=>Math.pow(Math.max(0,Math.cos(time*3.7)),9);
 function addLight(x,y,radius,power,color){
@@ -533,13 +571,20 @@ function addLight(x,y,radius,power,color){
 function updateLights(core){
  if(!staticLights){
   lighting.fill(0);
-  lamps.forEach(([x,y])=>addLight(x,y,3.35,.26,glowColors[levels[n].theme]));
-  lamps.forEach(([x,y],i)=>{if(i%2===0)addLight(x+1,y+1,2.7,.11,[119,168,219])});
+  lamps.forEach(([x,y],i)=>{
+   const color=arena?ferroEffects.roomLight[Math.floor(i/4)]:glowColors[levels[n].theme];
+   addLight(x,y,3.35,arena?.41:.26,color);
+   if(i%2===0)addLight(x+1,y+1,2.7,.11,[119,168,219]);
+  });
+  if(arena)arenaCores.forEach(([x,y],room)=>addLight(x,y,6,.64,ferroEffects.roomLight[room]));
   staticLights=lighting.slice();
  }else lighting.set(staticLights);
+ if(arena&&settings.effects)arenaCores.forEach(([x,y],room)=>{
+  if(Math.hypot(p.x-x,p.y-y)<11)addLight(x,y,5.5,.13+.20*(.5+Math.sin(time*2+room)*.5),ferroEffects.roomLight[room]);
+ });
  if(core&&Math.hypot(p.x-core.x,p.y-core.y)<13)addLight(core.x,core.y,6.4,.20+reactorPulse()*.59,[255,48,33]);
  if(flash>0)addLight(p.x+Math.cos(p.a)*.6,p.y+Math.sin(p.a)*.6,4,.65*flash/.105,boltColor[weapon]);
- for(const shot of shots)addLight(shot.x,shot.y,1.45,.16,[255,130,82]);
+ for(const shot of shots)if(Math.hypot(p.x-shot.x,p.y-shot.y)<10)addLight(shot.x,shot.y,1.45,.16,[255,130,82]);
 }
 function lit(rgb,light,index,weight=1){
  const r=Math.min(255,rgb[0]*light+lighting[index]*weight)|0;
@@ -549,10 +594,11 @@ function lit(rgb,light,index,weight=1){
 }
 function world(ca,sa,plane,eye){
  const chapter=levels[n],theme=chapter.theme;
- const [wallInk,,roofInk,lamp]=palettes[theme];
+ const [wallInk,,roofInk]=palettes[theme];
+ const outdoors=!arena&&chapter.outdoors;
  depth.fill(Infinity);
- pixels.fill(shade(chapter.outdoors?ferroSurfaces[theme].sky:roofInk,chapter.outdoors?1:.24));
- if(chapter.outdoors){
+ pixels.fill(shade(outdoors?ferroSurfaces[theme].sky:roofInk,outdoors?1:.24));
+ if(outdoors){
   for(let y=0;y<Math.min(H,Math.ceil(horizon));y++){
    const intensity=.40+Math.min(1,y/Math.max(1,horizon))*.65;
    pixels.fill(shade(ferroSurfaces[theme].sky,intensity),y*W,(y+1)*W);
@@ -578,19 +624,26 @@ function world(ca,sa,plane,eye){
      if(dist<=0||dist>=depth[index])continue;
      const wx=p.x+dx*dist,wy=p.y+dy*dist;
      const j=Math.floor(wx*32),k=Math.floor(wy*32);
-     const texture=surfaceTextures[theme][isRoof?4:3][(k&127)*128+(j&127)];
+     const room=arena?ferroArena.roomAt(wx,wy):0;
+     const material=arena?arenaMaterials[room]:theme;
+     const texture=surfaceTextures[material][isRoof?4:3][(k&127)*128+(j&127)];
      const light=1/(1+dist*.13);
-     pixels[index]=lit(texture,light,lightAt(wx,wy),isRoof?.71:1);
+     const core=arena&&!isRoof&&dist<14?arenaCores[room]:null;
+     const mark=core?ferroEffects.floorMark(wx-core[0],wy-core[1]):0;
+     pixels[index]=mark?shade(ferroEffects.roomLight[room],mark===2?.86:.54)
+      :lit(texture,light,lightAt(wx,wy),isRoof?.71:1);
      depth[index]=dist;
     }
    };
    span(Math.min(face,top),Math.max(face,top),z,false);
-   if(!chapter.outdoors)span(horizon+(eye-ceiling)*focal/near,roof,ceiling,true);
+   if(!outdoors)span(horizon+(eye-ceiling)*focal/near,roof,ceiling,true);
    if(side){iy+=sy;ty+=ay}else{ix+=sx;tx+=ax}
    const solid=grid[iy]?.[ix]!==0,next=heights[iy]?.[ix]??z;
    if(solid||next!==z){
     const edge=side?p.x+dx*d:p.y+dy*d;
     const stripe=Math.floor((edge-Math.floor(edge))*64);
+    const material=arena?arenaMaterials[ferroArena.roomAt(ix,iy)]:theme;
+    const lamp=palettes[material][3];
     const high=solid?ceiling:Math.max(z,next),low=solid?z:Math.min(z,next);
     const start=Math.max(0,Math.ceil(horizon+(eye-high)*focal/d));
     const end=Math.min(H,Math.ceil(horizon+(eye-low)*focal/d));
@@ -601,10 +654,10 @@ function world(ca,sa,plane,eye){
      const row=Math.floor(altitude*96)&127;
      const style=((ix*19+iy*11)%3+3)%3;
      const u=(stripe*2+(Math.floor((edge-Math.floor(edge))*128)&1))&127;
-     const luminous=solid&&(theme===1||theme===4)&&(row&63)>=41&&(row&63)<=43&&u>21&&u<106&&style===2;
+     const luminous=solid&&(arena||theme===1||theme===4)&&(row&63)>=41&&(row&63)<=43&&u>21&&u<106&&style===2;
      const illumination=1.12/(1+d*.106)*(side?.78:1);
      const faceLight=lightAt(p.x+dx*(d-.025),p.y+dy*(d-.025));
-     const texture=solid?surfaceTextures[theme][style][row*128+u]:((u+row*2)&31)<12?lamp:wallInk;
+     const texture=solid?surfaceTextures[material][style][row*128+u]:((u+row*2)&31)<12?lamp:wallInk;
      pixels[index]=lit(luminous?lamp:texture,illumination*(luminous?1.66:1),faceLight,.95);
      depth[index]=d;
     }
@@ -685,7 +738,13 @@ function draw(){
  const core=boss.hp>0?boss:null;
  updateLights(core);
  world(ca,sa,plane,eye);
- const scene=lamps.map(([x,y])=>({x,y,art:fixtureArt[levels[n].theme],size:.50,altitude:ceiling-.51,fixture:true}));
+ const scene=lamps.map(([x,y],i)=>({
+  x,y,art:fixtureArt[arena?arenaMaterials[Math.floor(i/4)]:levels[n].theme],size:.50,altitude:ceiling-.51,fixture:true
+ }));
+ if(arena)arenaCores.forEach(([x,y],room)=>{
+  const art=ferroEffects.crystal(room,time+room*.21,settings.effects);
+  scene.push({x,y,art,altitude:.30,size:1.85,fixture:true});
+ });
  for(const e of foes){
   const pose=e.hp<=0?'death':e.hit>0?'hit':e.jump>0?'jump':e.wind>0?'shoot':e.run?'run':e.walk?'walk':'idle';
   const elapsedFrame=pose==='death'?e.dead*12:pose==='shoot'?(1-e.wind/attackDuration)*12:pose==='hit'?(1-e.hit/hitDuration)*12:pose==='jump'?(1-e.jump/jumpDuration)*12:(pose==='idle'?time*5+e.phase*12:e.travel)%12;
@@ -697,7 +756,7 @@ function draw(){
 
  }
  for(const drop of blood)scene.push({x:drop.x,y:drop.y,altitude:drop.altitude,size:drop.size,color:drop.color,blood:true});
- for(const s of shots)scene.push({...s,size:.14,offset:.50});
+ if(!settings.effects)for(const s of shots)scene.push({...s,size:.14,offset:.50});
  for(const [x,y,kind,id] of items){
   if(kind==='key'){scene.push({x,y,art:keyArt,size:.52,offset:.07+Math.sin(time*4)*.07,fixture:true});continue}
   if(kind==='weapon'){
@@ -757,6 +816,15 @@ function draw(){
   }
 
  }
+ if(settings.effects){
+  ferroEffects.draw(ctx,(x,y,altitude)=>{
+   const dx=x-p.x,dy=y-p.y,z=dx*ca+dy*sa;
+   if(z<.22)return null;
+   const sx=Math.floor(W/2+W/2*(-dx*sa+dy*ca)/(z*plane));
+   const sy=Math.floor(horizon+(eye-altitude)*focal/z);
+   return sx>=0&&sx<W&&sy>=0&&sy<H&&z<depth[sy*W+sx]?[sx,sy,z]:null;
+  },shots);
+ }
  drawAtmosphere(ca,sa,plane,eye,core);
  ctx.save();
  ctx.scale(W/480,H/270);
@@ -764,7 +832,8 @@ function draw(){
   const cycle=heat>0?Math.max(1,Math.min(19,Math.floor((1-heat/guns[weapon].rate)*19)+1)):0;
   const width=[158,205,188,181,210][weapon];
   const gx=240+Math.cos(elapsed/2)*3-width/2;
-  const gy=243-width*.70+Math.sin(elapsed)*2;
+  const recoil=settings.effects&&flash>0?(flash/.105)**2*(weapon===1?10:5):0;
+  const gy=243-width*.70+Math.sin(elapsed)*2+recoil;
   ctx.drawImage(weaponSheet,cycle*160,weapon*112,160,112,Math.round(gx),Math.round(gy),width,width*.70);
  }
  if(hurt>0){ctx.fillStyle='rgba(255,36,40,'+hurt*.7+')';ctx.fillRect(0,0,480,270)}
@@ -1005,6 +1074,7 @@ async function startArena(e){
  arena=true;n=0;
  ferroEnemySprites.clear();
  const map=ferroArena.layout(mapSize,types);
+ arenaCores=map.cores;
  grid=map.grid;heights=grid.map(row=>row.map(()=>0));ceiling=2.58;
  const [x,y]=map.start;
  p={x,y,a:Math.PI/4,z:0,groundZ:0,jumpTime:0,hp:100,ammo:240};
@@ -1012,7 +1082,7 @@ async function startArena(e){
   hit:0,dead:0,wind:0,facing:i*1.7,jump:0,travel:0,run:false,
   nextTarget:time+(i%20)*.015,nextHop:time+.6+(i%11)*.12}));
  boss={x,y,hp:0};
- shots=[];blood.length=0;heat=flash=hurt=0;
+ shots=[];blood.length=0;ferroEffects.clear();heat=flash=hurt=0;
  keyHeld=keyDropped=false;
  attempt={shots:0,hits:0,seconds:0,damageTaken:0,secrets:0,deaths:0};
  checkpoint=null;roomDistance=null;
@@ -1035,7 +1105,7 @@ $('start').onclick=e=>{
   p.z=p.groundZ=floor(p.x,p.y);
   shots.length=0;
   hurt=1;
-  heat=flash=0;
+  heat=flash=0;ferroEffects.clear();
  }else if(state!=='pause'){
   if(activeAccount!==sessionAccount)activateAccount(sessionAccount);
   const requested=unlockedLevel(Number($('start').dataset.level));
@@ -1074,9 +1144,14 @@ function saveSettings(){
 muted=!settings.music;
 $('musicOption').checked=!muted;$('mute').textContent=muted?'♫ ×':'♫';
 $('particlesOption').checked=settings.particles;$('quality').value=settings.quality;
+$('effectsOption').checked=settings.effects;
 $('mute').onclick=()=>{muted=!muted;saveSettings()};
 $('musicOption').onchange=()=>{muted=!$('musicOption').checked;saveSettings()};
 $('particlesOption').onchange=()=>{settings.particles=$('particlesOption').checked;redraw=true;saveSettings()};
+$('effectsOption').onchange=()=>{
+ settings.effects=$('effectsOption').checked;
+ ferroEffects.clear();redraw=true;saveSettings();
+};
 $('fxVolume').value=settings.fxVolume;
 $('fxVolume').oninput=()=>{
  settings.fxVolume=Number($('fxVolume').value);

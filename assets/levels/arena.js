@@ -1,6 +1,8 @@
 const ferroArena=(()=>{
  const rooms=[[9,9],[27,9],[27,27],[9,27]];
  const links=[[0,1],[1,2],[2,3],[3,0]];
+ const split=(rooms[0][0]+rooms[2][0])/2;
+ const roomAt=(x,y)=>y<split?Number(x>=split):3-Number(x>=split);
 
  function layout(size,types){
   const grid=Array.from({length:size},()=>Array(size).fill(1));
@@ -25,7 +27,7 @@ const ferroArena=(()=>{
    }));
   });
   return {
-   grid,spawns,
+   grid,spawns,cores:rooms.map(([x,y])=>[x+.5,y+.5]),
    lamps:rooms.flatMap(([x,y])=>[[x-4,y-4],[x+4,y-4],[x-4,y+4],[x+4,y+4]]),
    supplies:rooms.flatMap(([x,y])=>[[x-5,y+4,'hp'],[x+5,y+4,'ammo']]),
    start:[4.5,4.5]
@@ -56,5 +58,5 @@ const ferroArena=(()=>{
   }
   return best;
  }
- return {layout,target,shotTarget};
+ return {layout,roomAt,target,shotTarget};
 })();
