@@ -57,3 +57,8 @@ const ferroSurfaces = [
  }
 ];
 
+// Separate wall atlases keep floor and ceiling sampling at the original resolution.
+const ferroWallAtlases=['shipyard','circuit','masonry','membrane','crystal','foundry'].map(
+ name=>'./assets/textures/'+name+'-walls.webp'
+);
+

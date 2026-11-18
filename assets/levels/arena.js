@@ -3,6 +3,18 @@ const ferroArena=(()=>{
  const links=[[0,1],[1,2],[2,3],[3,0]];
  const split=(rooms[0][0]+rooms[2][0])/2;
  const roomAt=(x,y)=>y<split?Number(x>=split):3-Number(x>=split);
+ const sectors=[
+  {name:'Reactor de plasma',material:1,color:'#61ffe5'},
+  {name:'Bretxa de gravetat',material:4,color:'#c295ff'},
+  {name:'Farga incandescent',material:2,wall:5,color:'#ffc36a'},
+  {name:'Cambra de biofusió',material:3,color:'#ff6b8d'}
+ ];
+
+ function aliveByRoom(foes){
+  const counts=[0,0,0,0];
+  for(const foe of foes)if(foe.hp>0)counts[roomAt(foe.x,foe.y)]++;
+  return counts;
+ }
 
  function layout(size,types){
   const grid=Array.from({length:size},()=>Array(size).fill(1));
@@ -58,5 +70,5 @@ const ferroArena=(()=>{
   }
   return best;
  }
- return {layout,roomAt,target,shotTarget};
+ return {layout,roomAt,target,shotTarget,sectors,links,aliveByRoom};
 })();

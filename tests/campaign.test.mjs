@@ -52,7 +52,7 @@ test('all campaign enemy and weapon sprite files exist', () => {
     read('../assets/levels/arena.js'),
     '({typesByWorld, spawns: ferroArena.layout(37, types).spawns})'
   ].join('\n'));
-  const files = new Set(['weapons.webp']);
+  const files = new Set(['weapons.webp', 'heavy-weapons.webp']);
   for (const { theme, roster, boss } of levels) {
     for (const slot of [...roster, boss]) {
       const type = typesByWorld[theme][slot];
@@ -218,4 +218,61 @@ test('each world uses a 640 by 128 PNG atlas with five tiles', () => {
     assert.equal(bytes.readUInt32BE(20), 128);
     assert.ok(html.includes('loadSurfaceTextures();'));
   }
+});
+
+test('all six detailed wall atlases contain three 256 by 256 wall panels', () => {
+  const atlases = runInNewContext(source + '\nferroWallAtlases');
+  assert.equal(atlases.length, 6);
+  for (const atlas of atlases) {
+    const bytes = readFileSync(new URL('../' + atlas.slice(2), import.meta.url));
+    assert.equal(bytes.toString('ascii', 8, 16), 'WEBPVP8 ');
+    assert.equal(bytes.readUInt16LE(26) & 0x3fff, 768);
+    assert.equal(bytes.readUInt16LE(28) & 0x3fff, 256);
+  }
+});
+
+test('arena props push, rebound off walls and can be hit at firing height', () => {
+  const props = runInNewContext(read('../assets/props.js') + '\nferroProps');
+  const [crate,barrel] = props.spawn([[5,5]]);
+  const open = () => false;
+  const player = {x:crate.x-crate.radius-.16,y:crate.y,z:0};
+  const original = crate.x;
+  props.tick([crate],open,player,[player.x-.03,player.y],.02);
+  assert.ok(crate.x>original);
+  props.push(crate,1,0,9,3);
+  const wall = x => x>crate.x+crate.radius+.005;
+  props.tick([crate],wall,{x:0,y:0,z:0},[0,0],.02);
+  assert.ok(crate.vx<0);
+  assert.ok(crate.z>0);
+  for(let i=0;i<45;i++)props.tick([crate],open,{x:0,y:0,z:0},[0,0],.025);
+  assert.equal(crate.z,0);
+  assert.equal(props.along([barrel],barrel.x-1,barrel.y,.49,1,0,2).prop,barrel);
+  assert.equal(props.along([barrel],barrel.x-1,barrel.y,1,1,0,2),null);
+});
+
+test('arena enemy counts follow living enemies across rooms', () => {
+  const arena = runInNewContext(read('../assets/levels/arena.js') + '\nferroArena');
+  const enemy = {x:9,y:9,hp:50};
+  const defeated = {x:9,y:9,hp:0};
+  assert.deepEqual(Array.from(arena.aliveByRoom([enemy,defeated])),[1,0,0,0]);
+  enemy.x=27;
+  assert.deepEqual(Array.from(arena.aliveByRoom([enemy,defeated])),[0,1,0,0]);
+});
+
+test('the seven viewmodels animate at rest and the two charged weapons keep their own roles', () => {
+  const {guns,weaponMotion,blastDamage,specialArsenal} = runInNewContext(
+    read('../assets/combat.js') + '\n({guns,weaponMotion,blastDamage,specialArsenal})'
+  );
+  for(let id=0;id<guns.length;id++){
+    assert.notDeepEqual(weaponMotion(id,1,0,1,0,true),weaponMotion(id,1.4,0,1,0,true));
+    assert.ok(weaponMotion(id,1,0,1,.105,true).y>weaponMotion(id,1,0,1,0,true).y);
+  }
+  assert.ok(guns[5].projectile.speed>guns[6].projectile.speed);
+  assert.ok(guns[6].projectile.radius>guns[5].projectile.radius);
+  assert.ok(guns[6].projectile.charge>0);
+  assert.ok(blastDamage(0,3,100)>blastDamage(1,3,100));
+  assert.equal(blastDamage(3,3,100),0);
+  assert.deepEqual(Array.from(specialArsenal(5)),[]);
+  assert.deepEqual(Array.from(specialArsenal(10)),[5]);
+  assert.deepEqual(Array.from(specialArsenal(11)),[5,6]);
 });

@@ -16,5 +16,10 @@ dimensions i l’ordre de les rajoles. El cel, la llum i els colors de reserva
 s’editen a `world-materials.js`, on també pots canviar el nom del PNG.
 El navegador aplica la il·luminació a les rajoles mentre es juga.
 
+Els fitxers `*-walls.webp` contenen les parets detallades. Cadascun té tres
+variants de 256 × 256 píxels i fa 768 × 256 en total. La farga de l’Arena fa
+servir `foundry-walls.webp`. Els PNG segueixen aportant el terra, el sostre i
+les parets de reserva durant la càrrega.
+
 Els nivells són a `../levels/`, els enemics i les armes a `../combat.js`
 i els motius musicals a `../music.js`.
