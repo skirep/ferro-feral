@@ -637,3 +637,23 @@ test('island shrubs fade smoothly near the camera while solid scenery remains op
   }
   for(const kind of [0,1,3,4])assert.equal(art.shrubOpacity(kind,.1),1);
 });
+
+test('rockets have directional art, a finite impact animation, and separate flame bursts', () => {
+  class Image { set src(path){statSync(new URL('../'+path,import.meta.url));this.onload()} }
+  const {arsenal,guns}=runInNewContext(read('../assets/combat.js')+'\n'+read('../assets/arsenal.js')+'\n({arsenal:ferroArsenal,guns})',{Image});
+  arsenal.prepare(()=>{});
+  assert.ok(guns[7].flame&&guns[7].range<5&&guns[7].rate<=.12);
+  const bolt={gun:guns[5],dx:1,dy:0,origin:[0,0],muzzle:[.4,0,.4],altitude:.4,traveled:2};
+  const render=(camera={x:0,y:0})=>{
+    const scene=[];arsenal.populate(scene,[bolt],camera);return scene;
+  };
+  assert.notEqual(render()[0].frameX,render({x:2,y:3})[0].frameX);
+  arsenal.plume([2,0,.4],[2,0,.4],true);
+  arsenal.tick(.25);
+  assert.ok(render()[1].frameX>0);
+  arsenal.plume([0,0,.4],[3,0,.5]);
+  arsenal.tick(.10);
+  assert.ok(render().some(item=>item.x>0&&item.x<2));
+  arsenal.tick(1);
+  assert.equal(render().length,1);
+});
