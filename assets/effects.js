@@ -117,10 +117,22 @@ const ferroEffects=(()=>{
    ctx.fillRect(sx-Math.floor(width/2),sy-Math.floor(width/2),width,width);
  }
 
- function draw(ctx,project,shots,bolts,detail){
+ function draw(ctx,project,shots,bolts,detail,reflex){
   const spark=(x,y,z,color,alpha,size)=>dot(ctx,project,x,y,z,color,alpha,size);
   for(const shot of shots){
    const vx=Math.cos(shot.a),vy=Math.sin(shot.a);
+   if(reflex){
+    // Two strands wrap around the flight path during a precision dodge.
+    const count=detail?12:6;
+    for(let i=1;i<=count;i++){
+     const age=i/count,d=age*.95,phase=d*12+shot.ttl*9;
+     const radius=.08*age,side=Math.cos(phase)*radius,lift=Math.sin(phase)*radius;
+     for(const sign of [-1,1]){
+      spark(shot.x-vx*d-sign*vy*side,shot.y-vy*d+sign*vx*side,
+       shot.altitude-shot.slope*d+sign*lift,'#72fbe4',.85*(1-age),6);
+     }
+    }
+   }
    for(let i=detail?4:2;i>=0;i--){
     const d=i*Math.min(.15,shot.speed*.037);
     spark(shot.x-vx*d,shot.y-vy*d,shot.altitude-shot.slope*d,i?shot.color:'#fff4cf',1-i*.17,i?7:12);

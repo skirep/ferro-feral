@@ -612,3 +612,16 @@ test('the carrier visibly deploys three alien actors onto walkable cells on ever
     }
   }
 });
+
+test('precision dodge requires a live near miss across the moving player', () => {
+  const detection = game.slice(game.indexOf('function preciseDodge('), game.indexOf('function update(dt)'));
+  function passes({side=.45, movement=.17, altitude=.44, aimed=true, cooldown=0, hurt=0, start=-.27}={}) {
+    const shot={a:0, aimedAtPlayer:aimed, altitude};
+    const context={shot, p:{x:0,y:movement,z:0}, reflexCooldown:cooldown, hurt, start, side, altitude};
+    return runInNewContext(detection+'\npreciseDodge(shot,start,-side,altitude,[0,0],.4,0,.05)',context);
+  }
+  assert.equal(passes(),true);
+  for (const scenario of [{side:-.45},{side:.65,movement:.1}]) assert.equal(passes(scenario),true);
+  for (const scenario of [{movement:0},{side:0},{side:1},{altitude:1.8},{aimed:false},
+    {cooldown:1},{hurt:.2},{start:1},{start:-1}]) assert.equal(passes(scenario),false);
+});
