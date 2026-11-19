@@ -389,7 +389,7 @@ test('the island connects every stage from entrance to exit and the central wrec
     assert.ok(seen.has([Math.floor(wreck.x)-1,Math.floor(wreck.y)].join(',')),chapter.name);
     assert.equal(grid[Math.floor(wreck.y)][Math.floor(wreck.x)],2,chapter.name);
     assert.equal(terrain[rooms[10][1]][rooms[10][0]],2,chapter.name);
-    assert.ok([0,1,2,3,4].every(kind => plants.some(plant => plant.kind===kind)),chapter.name);
+    assert.ok([0,1,2,3,4,5,6].every(kind => plants.some(plant => plant.kind===kind)),chapter.name);
   }
 });
 
@@ -624,4 +624,16 @@ test('precision dodge requires a live near miss across the moving player', () =>
   for (const scenario of [{side:-.45},{side:.65,movement:.1}]) assert.equal(passes(scenario),true);
   for (const scenario of [{movement:0},{side:0},{side:1},{altitude:1.8},{aimed:false},
     {cooldown:1},{hurt:.2},{start:1},{start:-1}]) assert.equal(passes(scenario),false);
+});
+
+test('island shrubs fade smoothly near the camera while solid scenery remains opaque', () => {
+  const art=runInNewContext(read('../assets/sputnik-art.js')+'\nferroSputnikArt');
+  for(const kind of [2,5,6]){
+    const alpha=[0,.45,.8,1.4,2,2.4,10].map(d=>art.shrubOpacity(kind,d));
+    assert.equal(alpha[0],alpha[1]);
+    assert.ok(alpha[0]>.2&&alpha[0]<.35);
+    assert.deepEqual(alpha,[...alpha].sort((a,b)=>a-b));
+    assert.ok(alpha[5]<1&&alpha[5]===alpha[6]);
+  }
+  for(const kind of [0,1,3,4])assert.equal(art.shrubOpacity(kind,.1),1);
 });

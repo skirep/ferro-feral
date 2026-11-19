@@ -57,8 +57,9 @@ const ferroSputnik=(()=>{
     const seed=(x*811+y*421+dx*29+dy*47+chapter.stage*711)%997;
     if(seed%9===0||Math.hypot(x+.5-wreck.x,y+.5-wreck.y)<2.65)continue;
     const beach=terrain[y][x]===0;
-    const kind=beach?(seed%3?0:2):seed%9<2?0:seed%9<4?1:seed%9===8?4:2;
-    const size=[2.95,3.15,1.24,2.15,1.12][kind]*(.83+seed%17/50);
+    let kind=beach?(seed%3?0:2):seed%9<2?0:seed%9<4?1:seed%9===8?4:2;
+    if(kind===2&&seed%5!==0)kind=beach||seed%4<2?5:6;
+    const size=[2.95,3.15,1.24,2.15,1.12,1.03,1.48][kind]*(.83+seed%17/50);
     const jitter=(seed%15-7)*.043;
     const yaw=seed*.193;
     if(!beach||seed%4===0)plants.push({x:x+.5+dx*.46+dy*jitter,y:y+.5+dy*.46+dx*jitter,kind,size,yaw});
