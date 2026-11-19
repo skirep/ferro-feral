@@ -52,7 +52,7 @@ body.playing #photoButton{display:block}
 </style>
 <canvas id="screen" width="576" height="324" aria-label="Ferro Feral"></canvas>
 <section id="menu"><small>DEJOCO ARTS</small><h1>FERRO<br>FERAL</h1><p id="intro">Travessa la nau, salta per sobre les bretxes i recupera les claus del Llindar.</p><p id="accountStatus" role="status" hidden></p><div id="menuActions"><button id="start">Inicia la campanya</button><button id="menuArena">Arena de quatre sales</button><button id="menuArenaExit" hidden>Surt de l’arena</button><button id="menuCampaign">Tria un món</button><button id="menuBestiary">Bestiari 360°</button><button id="accountButton" hidden>Entra amb Google</button><button id="menuOptions">Opcions</button><button id="menuControls">Controls</button><button id="menuRestart" hidden>Reinicia el nivell</button></div>
-<section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><label>Món <select id="worldSelect"></select></label><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option><option value="ultra">HD</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label>Volum dels efectes <input id="fxVolume" type="range" min="0" max="1" step=".05"></label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label><label><input id="effectsOption" type="checkbox" checked> Esteles, impactes i llum animada</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Esquiva de precisió</b> · Mou-te de costat quan un tret et passi a frec. Durant un segon els projectils enemics s’alentiran i podràs contraatacar.</p><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–7 per canviar d’arma, Q per saltar, P per obrir el mode foto i Esc per pausar.</p><p><b>Mòbil</b> · Mou el bolet per caminar o porta’l fins a la vora per córrer. Pots prémer Salt mentre mantens el bolet. Arrossega la vista per girar i toca FOC o Arma.</p><p><b>Comandament</b> · Estic esquerre per moure’t, dret per girar, RT per disparar, A per saltar, Y per canviar d’arma i Menú per pausar o continuar.</p></div>
+<section id="menuPanel" hidden><div id="campaignPanel" hidden><h2 id="campaignName"></h2><label>Món <select id="worldSelect"></select></label><ol id="campaignLevels"></ol></div><div id="optionsPanel" hidden><h2>Opcions</h2><label>Qualitat gràfica <select id="quality"><option value="fluid">Fluida</option><option value="balanced">Equilibrada</option><option value="detail">Detallada</option><option value="ultra">HD</option></select></label><label><input id="musicOption" type="checkbox" checked> Música</label><label>Volum dels efectes <input id="fxVolume" type="range" min="0" max="1" step=".05"></label><label><input id="particlesOption" type="checkbox" checked> Partícules ambientals</label><label><input id="effectsOption" type="checkbox" checked> Esteles, impactes i llum animada</label></div><div id="controlsPanel" hidden><h2>Controls</h2><p><b>Esquiva de precisió</b> · Mou-te de costat quan un tret et passi a frec. Durant un segon els projectils enemics s’alentiran i podràs contraatacar.</p><p><b>Ordinador</b> · WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–8 per canviar d’arma, Q per saltar, P per obrir el mode foto i Esc per pausar.</p><p><b>Mòbil</b> · Mou el bolet per caminar o porta’l fins a la vora per córrer. Pots prémer Salt mentre mantens el bolet. Arrossega la vista per girar i toca FOC o Arma.</p><p><b>Comandament</b> · Estic esquerre per moure’t, dret per girar, RT per disparar, A per saltar, Y per canviar d’arma i Menú per pausar o continuar.</p></div>
 <div id="bestiaryPanel" hidden>
  <h2>Bestiari 360°</h2>
  <div id="bestiaryControls">
@@ -115,7 +115,8 @@ body.playing #photoButton{display:block}
 <script src="./assets/enemies/catalog.js?v=boarding"></script>
 <script src="./assets/enemies/character-motion.js"></script>
 <script src="./assets/enemies/sprites.js?v=sputnik-hd"></script>
-<script src="./assets/combat.js?v=muzzle-origin"></script>
+<script src="./assets/combat.js?v=flamer"></script>
+<script src="./assets/arsenal.js"></script>
 <script src="./assets/props.js?v=props-360"></script>
 <script src="./assets/levels/arena.js?v=sputnik"></script>
 <script src="./assets/music.js"></script>
@@ -204,7 +205,7 @@ function level(index){
  p={x:sx+.5,y:sy+.5,a:skyHeading,z:heights[sy][sx],groundZ:heights[sy][sx],jumpTime:0,hp:100,ammo:20};
  p.safe=[p.x,p.y];
  reflexTime=reflexCooldown=0;
- shots=[];blood.length=0;ferroEffects.clear();heat=flash=hurt=0;
+ shots=[];blood.length=0;ferroEffects.clear();ferroArsenal.clear();heat=flash=hurt=0;
  props=[];playerBolts=[];blasts=[];chargedShot=null;
  propFragments.length=0;
  const [ex,ey]=rooms[chapter.route.at(-1)];
@@ -222,6 +223,7 @@ function level(index){
  if(n===0)owned.clear();
  owned.add(0);
  const arrivals=[...[[1],[2],[3],[4],[]][chapter.stage]];
+ if(chapter.stage===0)arrivals.push(7);
  if(n===5)arrivals.push(5);
  if(n===10)arrivals.push(6);
  arrivals.forEach((id,i)=>{
@@ -279,6 +281,7 @@ function hopHeight(e){
 let weaponReady=false;
 let heavyWeaponReady=false;
 function prepareWeapon(){
+ ferroArsenal.prepare(()=>{redraw=true});
  weaponSheet.onload=()=>{weaponReady=true;redraw=true};
  weaponSheet.src='./assets/weapons.webp?v=frames1';
  heavyWeaponSheet.onload=()=>{heavyWeaponReady=true;redraw=true};
@@ -395,7 +398,7 @@ function fire(){
  }
  attempt.shots++;
  if(targets.length)attempt.hits++;
- if(settings.effects){
+ if(settings.effects||gun.flame){
   const source=worldMuzzle();
   const target=targets[0];
   let end;
@@ -413,9 +416,10 @@ function fire(){
    const hitWall=farthest<gun.range;
    const distance=Math.max(.15,closest-.025);
    end=[p.x+ca*distance,p.y+sa*distance,p.z+.50];
-   if(hitWall)ferroEffects.impact(...end,gun.color);
+   if(hitWall&&settings.effects&&!gun.flame)ferroEffects.impact(...end,gun.color);
   }
-  ferroEffects.trace(source,end,gun.color,weapon===1||weapon>=3);
+  if(gun.flame)ferroArsenal.plume(source,end);
+  else ferroEffects.trace(source,end,gun.color,weapon===1||weapon>=3);
  }
  targets.slice(0,gun.targets).forEach((e,i)=>{
   const distance=Math.hypot(e.x-p.x,e.y-p.y);
@@ -487,6 +491,7 @@ function updateExplosives(dt){
  blasts.length=0;
 }
 function explode({x,y,altitude,power,radius,color,playerShot,omega}){
+ if(playerShot&&!omega)ferroArsenal.plume([x,y,altitude],[x,y,altitude],true);
  if(settings.effects)ferroEffects.blast(x,y,altitude,color,radius,omega);
  if(audio&&Math.hypot(x-p.x,y-p.y)<13){
   tone(omega?91:62,omega?.55:.32,.46,'sawtooth',audio.currentTime,fx,24);
@@ -631,7 +636,7 @@ function update(dt){
  reflexCooldown=Math.max(0,reflexCooldown-dt);
  attempt.seconds+=dt;
  tickBlood(dt);
- ferroEffects.tick(dt);
+ ferroEffects.tick(dt);ferroArsenal.tick(dt);
  const turn=+keys.has('arrowright')-keys.has('arrowleft')+padTurn;
  p.a+=turn*dt*2.3;
  const forward=+keys.has('w')+keys.has('arrowup')-keys.has('s')-keys.has('arrowdown')-stickY-padMoveY;
@@ -860,7 +865,7 @@ function lightAt(x,y){
 }
 const glowColors=ferroSurfaces.map(surface=>surface.glow);
 const arenaMaterials=ferroArena.sectors.map(sector=>sector.material);
-const boltColor=[[102,229,255],[255,189,81],[255,212,101],[95,255,178],[255,91,65],[255,137,70],[154,255,104]];
+const boltColor=[[102,229,255],[255,189,81],[255,212,101],[95,255,178],[255,91,65],[255,137,70],[154,255,104],[255,142,54]];
 const reactorPulse=()=>Math.pow(Math.max(0,Math.cos(time*3.7)),9);
 function addLight(x,y,radius,power,color){
  const minX=Math.max(0,Math.floor((x-radius)*4)),maxX=Math.min(lightSize-1,Math.ceil((x+radius)*4));
@@ -1259,9 +1264,17 @@ function drawWreckSmoke(ca,sa,plane,eye){
 }
 function currentViewmodel(){
  if(weaponShown!==weapon){weaponShown=weapon;weaponSince=time}
- const heavy=weapon>=5&&heavyWeaponReady;
+ const heavy=weapon===7?!!ferroArsenal.flamer():weapon>=5&&heavyWeaponReady;
  const visibleFlash=heat>0&&flashWeapon===weapon?flash:0;
  const motion=weaponMotion(weapon,time,elapsed,time-weaponSince,visibleFlash,settings.effects);
+ if(heat>0&&flashWeapon===weapon){
+  const phase=Math.max(0,Math.min(1,1-heat/guns[weapon].rate));
+  const settle=Math.sin(phase*Math.PI*2)*Math.sin(phase*Math.PI);
+  const heavyKick=weapon===5||weapon===1;
+  motion.roll+=settle*(heavyKick?.070:.025);
+  motion.x+=settle*(heavyKick?3.0:1.2);
+ }
+ if(p.jumpTime>0)motion.y+=4*Math.sin(Math.PI*p.jumpTime/jumpDuration);
  return weaponViewmodel(weapon,motion,heavy);
 }
 function cameraEye(){return p.z+.5+Math.sin(elapsed*2)*.018}
@@ -1273,14 +1286,15 @@ function drawWeapon(){
  const gun=guns[weapon];
  const firing=heat>0&&flashWeapon===weapon;
  const cycle=firing?Math.max(1,Math.min(19,Math.floor((1-heat/gun.rate)*19)+1)):0;
- const heavy=weapon>=5&&heavyWeaponReady;
+ const heavy=weapon===7?!!ferroArsenal.flamer():weapon>=5&&heavyWeaponReady;
  const {width,height,x,y,roll,muzzle}=currentViewmodel();
  const charge=weapon===6&&chargedShot?1-chargedShot.remaining/gun.projectile.charge:0;
  if(!heavy&&!weaponReady)return;
  ctx.save();ctx.translate(x,y);ctx.rotate(roll);
  if(heavy){
   if(charge>0)ctx.filter='brightness('+(1+charge*.52).toFixed(2)+')';
-  ctx.drawImage(heavyWeaponSheet,(weapon-5)*224,0,224,176,-width/2,-height,width,height);
+  if(weapon===7)ctx.drawImage(ferroArsenal.flamer(),-width/2,-height,width,height);
+  else ctx.drawImage(heavyWeaponSheet,(weapon-5)*224,0,224,176,-width/2,-height,width,height);
   ctx.filter='none';
   const glow=weapon===6?(charge>0?.28+charge*.65:.20+Math.sin(time*3)*.10):.20+Math.sin(time*4.4)*.12;
   const center=-height*(weapon===6?.49:.67);
@@ -1296,6 +1310,7 @@ function drawWeapon(){
  }else{
   ctx.drawImage(weaponSheet,cycle*160,Math.min(4,weapon)*112,160,112,-width/2,-height,width,height);
  }
+ ferroArsenal.grip(ctx,weapon,width,height,firing?Math.min(1,1-heat/gun.rate):0);
  ctx.restore();
 }
 function draw(){
@@ -1385,7 +1400,9 @@ function draw(){
   fragment:true,lean:Math.sin(fragment.yaw)*.94
  });
  if(!settings.effects)for(const s of shots)scene.push({...s,size:.14,offset:.50});
+ ferroArsenal.populate(scene,playerBolts,viewCamera);
  if(!settings.effects)for(const bolt of playerBolts){
+  if(!bolt.gun.projectile.charge)continue;
   const [x,y,altitude]=boltTrailPoint(bolt);
   scene.push({x,y,altitude,size:bolt.gun.projectile.charge?.25:.13,color:bolt.gun.color});
  }
@@ -1769,7 +1786,7 @@ async function startArena(e){
  propFragments.length=0;
  boss={x,y,hp:0};
  reflexTime=reflexCooldown=0;
- shots=[];blood.length=0;ferroEffects.clear();heat=flash=hurt=0;
+ shots=[];blood.length=0;ferroEffects.clear();ferroArsenal.clear();heat=flash=hurt=0;
  keyHeld=keyDropped=false;
  attempt={shots:0,hits:0,seconds:0,damageTaken:0,secrets:0,deaths:0};
  checkpoint=null;roomDistance=null;
@@ -1794,7 +1811,7 @@ $('start').onclick=e=>{
   shots.length=playerBolts.length=blasts.length=0;
   chargedShot=null;
   hurt=1;
-  heat=flash=0;ferroEffects.clear();
+  heat=flash=0;ferroEffects.clear();ferroArsenal.clear();
  }else if(state!=='pause'){
   if(activeAccount!==sessionAccount)activateAccount(sessionAccount);
   const requested=unlockedLevel(Number($('start').dataset.level));
@@ -1823,6 +1840,7 @@ $('start').onclick=e=>{
   owned.clear();
   const initialStage=tropical?levels[selected].stage:selected;
   for(let id=0;id<5&&id<=initialStage;id++)owned.add(id);
+  if(initialStage>0)owned.add(7);
   if(!tropical)for(const id of specialArsenal(selected))owned.add(id);
   level(selected);
  }
@@ -1843,7 +1861,7 @@ $('musicOption').onchange=()=>{muted=!$('musicOption').checked;saveSettings()};
 $('particlesOption').onchange=()=>{settings.particles=$('particlesOption').checked;redraw=true;saveSettings()};
 $('effectsOption').onchange=()=>{
  settings.effects=$('effectsOption').checked;
- ferroEffects.clear();redraw=true;saveSettings();
+ ferroEffects.clear();ferroArsenal.clear();redraw=true;saveSettings();
 };
 $('fxVolume').value=settings.fxVolume;
 $('fxVolume').oninput=()=>{
@@ -1880,7 +1898,7 @@ function pause(){
  showMenuPanel();$('menuRestart').hidden=false;document.exitPointerLock?.();
  accountButton.disabled=true;
  state='pause';document.body.classList.remove('playing');keys.clear();resetTouch();
- $('intro').textContent='WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–7 per canviar d’arma i Q per saltar.';
+ $('intro').textContent='WASD per moure’t, ratolí o fletxes per girar, clic o espai per disparar, 1–8 per canviar d’arma i Q per saltar.';
  $('start').textContent='Continua';$('menu').hidden=false;
 }
 let photoDrag=null;
@@ -1958,7 +1976,7 @@ window.addEventListener('keydown',e=>{
  if(k==='p'&&!e.repeat){openPhoto();return}
  keys.add(k);
  if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k))e.preventDefault();
- if(!chargedShot&&/^[1-7]$/.test(k)&&owned.has(Number(k)-1))weapon=Number(k)-1;
+ if(!chargedShot&&/^[1-8]$/.test(k)&&owned.has(Number(k)-1))weapon=Number(k)-1;
  if(k==='q'&&!e.repeat)jumpPlayer();
  if(k==='escape')pause();
 });
