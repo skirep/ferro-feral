@@ -121,7 +121,7 @@ body.playing #photoButton{display:block}
 <script src="./assets/music.js"></script>
 <script src="./assets/enemies/bestiary.js?v=sputnik-hd"></script>
 <script src="./assets/effects.js?v=precision-dodge"></script>
-<script src="./assets/scenery.js?v=ship-decks"></script>
+<script src="./assets/scenery.js?v=convoy1"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id);
@@ -801,7 +801,12 @@ function update(dt){
   if(kind==='checkpoint'){
    if(p.hp<=0)return true;
    checkpoint={x,y,a:id};
-   pickupNotice='PUNT DE CONTROL ACTIVAT';
+   if(ship){
+    checkpoint.linkedAt=time;
+    p.ammo+=12;
+    if(audio){tone(392,.21,.18,'triangle',audio.currentTime,fx);tone(587,.34,.15,'sine',audio.currentTime+.13,fx)}
+   }
+   pickupNotice=ship?'BALISA ENLLAÇADA · +12 MUNICIONS':'PUNT DE CONTROL ACTIVAT';
    pickupTime=3.8;
   }
   if(kind==='secret'){
@@ -885,6 +890,12 @@ function updateLights(core){
   const charge=Math.max(0,1-arenaPulses[room]/1.25);
   addLight(x,y,5.5,.13+.20*(.5+Math.sin(time*2+room)*.5)+charge*.38,ferroEffects.roomLight[room]);
  });
+ if(ship&&!checkpoint){
+  const relay=items.find(item=>item[2]==='checkpoint');
+  if(relay&&Math.hypot(p.x-relay[0],p.y-relay[1])<9){
+   addLight(relay[0],relay[1],3.4,settings.effects?.42+.12*Math.sin(time*4):.44,[72,246,213]);
+  }
+ }
  if(core&&Math.hypot(p.x-core.x,p.y-core.y)<13)addLight(core.x,core.y,6.4,.20+reactorPulse()*.59,[255,48,33]);
  if(flash>0)addLight(p.x+Math.cos(p.a)*.6,p.y+Math.sin(p.a)*.6,4,.65*flash/.105,boltColor[flashWeapon]);
  if(chargedShot&&settings.effects){
@@ -933,7 +944,15 @@ function world(ca,sa,plane,eye){
  const materials=ferroShip.panelMaterials;
  const skyRows=space&&Int32Array.from({length:H},(_,y)=>
   Math.max(0,Math.min(space.height-1,Math.floor((.50-Math.atan((horizon-y)/focal)/Math.PI)*space.height)))*space.width);
+ const fleet=space&&ferroScenery.fleet();
+ const lateral=-viewCamera.x*Math.sin(skyHeading)+viewCamera.y*Math.cos(skyHeading);
+ const convoy=fleet&&ferroScenery.convoyView(settings.effects?attempt.seconds:0,n,lateral);
+ const fleetRows=convoy&&Int32Array.from(skyRows,row=>Math.floor(
+  (row/(space.width*space.height)-convoy.top)*fleet.width/(2*convoy.span)));
  const haze=island?ferroSputnikSun.mist:ferroScenery.haze(theme);
+ const linkAge=ship&&settings.effects&&checkpoint?time-checkpoint.linkedAt:Infinity;
+ const scanRadius=linkAge<1.5?linkAge*3.2:0;
+ const scanInner=Math.max(0,scanRadius-.15)**2,scanOuter=scanRadius**2;
  const timeRipple=settings.effects?Math.floor(time*13):0;
  depth.fill(Infinity);
  pixels.fill(shade(outdoors?ferroSurfaces[theme].sky:roofInk,outdoors?1:.24));
@@ -953,6 +972,7 @@ function world(ca,sa,plane,eye){
   const u=(2*x/W-1)*plane,dx=ca-sa*u,dy=sa+ca*u;
   const heading=space?(.40+(viewCamera.a+Math.atan(u)-skyHeading)/(Math.PI*2)):0;
   const skyColumn=space?Math.floor((heading-Math.floor(heading))*space.width):0;
+  const fleetColumn=convoy?ferroScenery.convoyColumn(convoy,heading):-1;
   let ix=Math.floor(viewCamera.x),iy=Math.floor(viewCamera.y),near=.004;
   const ax=Math.abs(1/dx),ay=Math.abs(1/dy),sx=Math.sign(dx),sy=Math.sign(dy);
   let tx=sx===0?Infinity:(sx<0?viewCamera.x-ix:ix+1-viewCamera.x)*ax;
@@ -987,6 +1007,10 @@ function world(ca,sa,plane,eye){
        if((caution&1&&fx<.19)||(caution&2&&fx>.81)||(caution&4&&fy<.19)||(caution&8&&fy>.81)){
         paint=blendLight(paint,((Math.floor((wx+wy)*9)&1)?[255,178,52]:[28,23,26]),.77);
        }
+      }
+      if(scanRadius&&!isRoof&&!fromObject&&!fromPit){
+       const rx=wx-checkpoint.x,ry=wy-checkpoint.y,r2=rx*rx+ry*ry;
+       if(r2>scanInner&&r2<scanOuter)paint=blendLight(paint,[84,255,212],.85*(1-linkAge/1.5));
       }
       pixels[index]=paint;depth[index]=dist;
       continue;
@@ -1070,7 +1094,8 @@ function world(ca,sa,plane,eye){
      const rim=solid&&outdoors&&high-altitude<.045;
      if(viewport&&altitude>z+.28&&altitude<high-.39&&column>12&&column<243){
       const trim=altitude<z+.34||altitude>high-.45||column<18||column>237;
-      const color=space?space.colors[skyRows[y]+skyColumn]:shade([12,17,39],1);
+      let color=space?space.colors[skyRows[y]+skyColumn]:shade([12,17,39],1);
+      if(fleetColumn>=0)color=ferroScenery.convoyPixel(color,fleetColumn,fleetRows[y]);
       pixels[index]=trim?blendLight(color,[67,114,145],.62):blendLight(color,[63,117,157],.075);
       depth[index]=d;
       continue;
@@ -1362,6 +1387,10 @@ function draw(){
   scene.push({x,y,altitude,size:bolt.gun.projectile.charge?.25:.13,color:bolt.gun.color});
  }
  for(const [x,y,kind,id] of items){
+  if(kind==='checkpoint'&&ship&&ferroScenery.beacon()){
+   scene.push({x,y,art:ferroScenery.beacon(),frameSize:96,frameX:96*(settings.effects?Math.floor(time*10)%12:0),size:.96,fixture:true});
+   continue;
+  }
   if(kind==='key'){scene.push({x,y,art:keyArt,size:.52,offset:.07+Math.sin(time*4)*.07,fixture:true});continue}
   if(kind==='weapon'){
    scene.push({x,y,art:pickupArt[id],size:.74,offset:.09+Math.sin(time*4)*.055,fixture:true});

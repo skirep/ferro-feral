@@ -8,10 +8,36 @@ const ferroScenery=(()=>{
  const tau=Math.PI*2;
  let space=null, shipTiles=null, loadingShip=false;
 
+ let fleet=null, beacon=null;
+
+ function convoyView(seconds,stage,parallax){
+  // Bearings use turns, so the formation stays continuous across panorama seams.
+  return {bearing:.395+stage*.183+seconds*.009-parallax*.0017,
+   top:.426+Math.sin(seconds*.20+stage)*.008,span:.115};
+ }
+ function convoyColumn(view,bearing){
+  const offset=bearing-view.bearing;
+  const local=(offset-Math.floor(offset+.5))/view.span+.5;
+  return local>=0&&local<1?Math.floor(local*fleet.width):-1;
+ }
+ function convoyPixel(background,column,row){
+  if(row<0||row>=fleet.height)return background;
+  const fg=fleet.colors[row*fleet.width+column],alpha=fg>>>24;
+  if(!alpha)return background;
+  if(alpha===255)return fg;
+  const inv=255-alpha;
+  const r=((fg&255)*alpha+(background&255)*inv)/255;
+  const g=((fg>>>8&255)*alpha+(background>>>8&255)*inv)/255;
+  const b=((fg>>>16&255)*alpha+(background>>>16&255)*inv)/255;
+  return (255<<24)|(b<<16)|(g<<8)|r;
+ }
  function prepareSpace(ready){
   if(loadingShip)return;
   loadingShip=true;
-  for(const [file,read] of [['./assets/skies/orbit.webp',loadOrbit],['./assets/textures/ship-deck.webp',loadDeck]]){
+  for(const [file,read] of [['./assets/skies/orbit.webp',loadOrbit],['./assets/textures/ship-deck.webp',loadDeck],
+   ['./assets/convoy/escorta.png',(ctx,width,height)=>{
+    fleet={width,height,colors:new Uint32Array(ctx.getImageData(0,0,width,height).data.buffer)};
+   }],['./assets/convoy/balisa.png',ctx=>{beacon=ctx.canvas}]]){
    const image=new Image();
    image.onload=()=>{
     const canvas=document.createElement('canvas');
@@ -141,5 +167,5 @@ const ferroScenery=(()=>{
  }
 
  const haze=theme=>skies[theme][2];
- return {load,sky,weather,haze,beam,prepareSpace,space:()=>space,shipTiles:()=>shipTiles};
+ return {convoyView,convoyColumn,convoyPixel,fleet:()=>fleet,beacon:()=>beacon,load,sky,weather,haze,beam,prepareSpace,space:()=>space,shipTiles:()=>shipTiles};
 })();
