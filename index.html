@@ -101,11 +101,11 @@ body.playing #photoButton{display:block}
 <script src="./assets/textures/world-materials.js?v=arena-surge"></script>
 <script src="./assets/textures/load-textures.js?v=arena-surge"></script>
 <script src="./assets/levels/ship.js"></script>
-<script src="./assets/levels/illa-sputnik.js?v=boarding"></script>
-<script src="./assets/sputnik-art.js?v=hd"></script>
+<script src="./assets/levels/illa-sputnik.js?v=undergrowth"></script>
+<script src="./assets/sputnik-art.js?v=undergrowth"></script>
 <script src="./assets/sputnik-wildlife.js?v=orbital-motion"></script>
 <script src="./assets/sputnik-sun.js?v=light"></script>
-<script src="./assets/sputnik-orbit.js?v=boarding"></script>
+<script src="./assets/sputnik-orbit.js?v=undergrowth"></script>
 <script src="./assets/sputnik-routes.js"></script>
 <script src="./assets/photo.js"></script>
 <script src="./assets/viewport.js"></script>
@@ -1341,7 +1341,10 @@ function draw(){
   if(dx*dx+dy*dy>27*27||dx*ca+dy*sa<.14)continue;
   const frame=ferroSputnikArt.frame(plant,Math.atan2(-dy,-dx));
   if(frame)scene.push({...plant,...frame,altitude:0,fixture:true,
-   roll:settings.effects?ferroSputnikOrbit.plantSway(orbitFrame,plant):0});
+   opacity:ferroSputnikArt.shrubOpacity(plant.kind,Math.hypot(dx,dy)),
+   sway:settings.effects&&plant.kind!==3&&plant.kind!==4?
+    .014*Math.sin(time*1.7+plant.x*.54+plant.y*.30)+.005*Math.sin(time*3+plant.yaw)
+    +ferroSputnikOrbit.plantSway(orbitFrame,plant):0});
  }
  if(island)for(const animal of wildlife){
   const dx=animal.x-viewCamera.x,dy=animal.y-viewCamera.y;
@@ -1451,7 +1454,9 @@ function draw(){
     const frame=o.foe?ferroEnemySprites.get(o.foe.type,o.foe.view,o.pose,o.frame,o.foe.torso):o.art;
     if(frame){
      ctx.clip();
+     if(o.opacity!==undefined)ctx.globalAlpha*=o.opacity;
      const size=o.frameSize??frame.width;
+     if(o.sway){ctx.translate(0,top+h);ctx.transform(1,0,o.sway,1,0,0);ctx.translate(0,-top-h)}
      if(o.roll){ctx.translate(left+w/2,top+h*.9);ctx.rotate(o.roll);ctx.translate(-left-w/2,-top-h*.9)}
      ctx.drawImage(frame,o.frameX??0,o.frameY??0,size,size,left,top,w,h);
     }

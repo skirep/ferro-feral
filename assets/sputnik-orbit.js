@@ -100,7 +100,7 @@ const ferroSputnikOrbit=(()=>{
  }
 
  function plantSway(state,plant){
-  if(!state||plant.kind>=3)return 0;
+  if(!state||plant.kind===3||plant.kind===4)return 0;
   const d=Math.hypot(plant.x-state.targetX,plant.y-state.targetY);
   const scan=state.scan*clamp(1-d/8);
   const shock=state.pulse*clamp(1-Math.abs(d-state.wave)/2.3);

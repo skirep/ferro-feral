@@ -1,6 +1,6 @@
 const ferroSputnikArt=(()=>{
- let pending, sprites, wildlife, materials, panorama;
- const cell=160,animalCell=96,materialSize=512;
+ let pending, sprites, undergrowth, wildlife, materials, panorama;
+ const cell=160,leafCell=288,animalCell=96,materialSize=512;
 
  function load(path){
   return new Promise((resolve,reject)=>{
@@ -21,8 +21,9 @@ const ferroSputnikArt=(()=>{
  }
 
  function prepare(){
-  pending??=Promise.all([load('foliage.webp'),load('terrain-hd.webp'),load('coast.webp'),load('wildlife.webp')]).then(([flora,ground,sky,animals])=>{
+  pending??=Promise.all([load('foliage.webp'),load('terrain-hd.webp'),load('coast.webp'),load('wildlife.webp'),load('undergrowth.webp')]).then(([flora,ground,sky,animals,leaves])=>{
    if(flora.naturalWidth!==8*cell||flora.naturalHeight!==5*cell||
+    leaves.naturalWidth!==8*leafCell||leaves.naturalHeight!==2*leafCell||
     ground.naturalWidth!==materialSize*2||ground.naturalHeight!==materialSize*2||
     animals.naturalWidth!==8*animalCell||animals.naturalHeight!==16*animalCell)throw new Error('Invalid Sputnik atlas dimensions');
    const sample=pixels(ground);
@@ -46,6 +47,7 @@ const ferroSputnikArt=(()=>{
    });
    panorama={width:sky.naturalWidth,height:sky.naturalHeight,pixels:pixels(sky)};
    wildlife=animals;
+   undergrowth=leaves;
    sprites=flora;
   }).catch(error=>{pending=null;throw error});
   return pending;
@@ -54,7 +56,14 @@ const ferroSputnikArt=(()=>{
  function frame(plant,bearing){
   if(!sprites)return null;
   plant.view=ferroEnemySprites.viewFor(plant.yaw,bearing,plant.view);
+  if(plant.kind>=5)return {art:undergrowth,frameX:plant.view*leafCell,frameY:(plant.kind-5)*leafCell,frameSize:leafCell};
   return {art:sprites,frameX:plant.view*cell,frameY:plant.kind*cell,frameSize:cell};
+ }
+
+ function shrubOpacity(kind,distance){
+  if(kind!==2&&kind!==5&&kind!==6)return 1;
+  const t=Math.max(0,Math.min(1,(distance-.45)/1.95));
+  return .27+.61*t*t*(3-2*t);
  }
 
  function animalFrame(animal,bearing){
@@ -79,5 +88,5 @@ const ferroSputnikArt=(()=>{
   }
  }
 
- return {prepare,ready:()=>!!sprites,frame,animalFrame,sky,materialSize,materials:()=>materials};
+ return {prepare,ready:()=>!!sprites,frame,shrubOpacity,animalFrame,sky,materialSize,materials:()=>materials};
 })();
