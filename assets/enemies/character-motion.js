@@ -55,9 +55,9 @@ const ferroCharacterMotion=(()=>{
    gait.save();
    if(opposite)gait.scale(-1,1);
    const legsX=opposite?facing((8-view)%8)*cell:x;
-   for(let start=thigh;start<foot;start+=quality){
-    const count=Math.min(quality,foot-start);
-    const taper=(start-thigh)/(foot-thigh);
+   for(let start=thigh;start<cell;start+=quality){
+    const count=Math.min(quality,cell-start);
+    const taper=Math.min(1,(start-thigh)/(foot-thigh));
     const width=cell*(1-taper*(1-reach)*(sprint?.50:.70));
     const sway=side*taper*reach*(sprint?3:7);
     gait.drawImage(sheet,legsX,y+start,cell,count,-width/2+sway,start-foot,width,count);
@@ -65,11 +65,23 @@ const ferroCharacterMotion=(()=>{
    gait.restore();
    const weight=[1,.94,.82,.35,0,.35,.82,.94][view];
    const displacement=weight*torso*(sprint?4.3:1.4);
-   // Deform only the upper torso band and taper to the shoulders and waist.
-   const mapped=at=>Math.round(at+Math.max(0,1-Math.abs(at-68)/23)**2*displacement);
-   for(let start=0;start<thigh;start+=quality){
-    const next=Math.min(thigh,start+quality),top=mapped(start);
-    gait.drawImage(sheet,x,y+start,cell,next-start,-mid,top-foot,cell,mapped(next)-top);
+   // Keep clothing and equipment outside the chest region anchored to the source pose.
+   gait.drawImage(sheet,x,y,cell,thigh,-mid,-foot,cell,thigh);
+   if(Math.abs(displacement)>.2){
+    const center=Math.round(mid+side*13);
+    const radius=Math.round(24-Math.abs(side)*8);
+    const top=44,bottom=92;
+    gait.clearRect(center-radius-mid,top-foot,radius*2,bottom-top);
+    for(let col=center-radius;col<center+radius;col+=quality){
+     const width=Math.min(quality,center+radius-col);
+     const offset=(col+width/2-center)/radius;
+     const amplitude=displacement*(1-offset*offset)**2;
+     const mapped=row=>row+Math.round(amplitude*Math.sin(Math.PI*(row-top)/(bottom-top))**2);
+     for(let row=top;row<bottom;row+=quality){
+      const next=Math.min(row+quality,bottom);
+      gait.drawImage(sheet,x+col,y+row,width,next-row,col-mid,mapped(row)-foot,width,mapped(next)-mapped(row));
+     }
+    }
    }
    gait.resetTransform();
    ctx.drawImage(gaitCanvas,-mid,-foot);
