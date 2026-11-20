@@ -117,9 +117,10 @@ const ferroEnemySprites = (() => {
   const slot=type.slot;
   if(!type.atlas||entry.directional.has(slot))return;
   if(entry.pending.has(slot))return entry.pending.get(slot);
-  const task=image('360/'+type.atlas+'.webp').then(sheet=>{
-   const cell=sheet.naturalWidth/(type.hd?views:directionalFrames);
-   const valid=type.hd?cell===ferroCharacterMotion.cell&&sheet.naturalHeight===cell*4:
+  const path=type.illustrated?'illustrated/'+type.atlas+'/views':'360/'+type.atlas;
+  const task=image(path+'.webp').then(sheet=>{
+   const cell=sheet.naturalWidth/(type.illustrated?4:type.hd?views:directionalFrames);
+   const valid=type.illustrated?cell===256&&sheet.naturalHeight===2*cell:type.hd?cell===ferroCharacterMotion.cell&&sheet.naturalHeight===cell*4:
     [80,96].includes(cell)&&sheet.naturalHeight===cell*views*motionPoses.length;
    if(!valid){
     throw new Error('Invalid directional enemy atlas: '+type.atlas);
@@ -200,13 +201,25 @@ const ferroEnemySprites = (() => {
   return ((Math.round(relative/step)%views)+views)%views;
  }
 
- function directionalFrame({sheet,cell},view,motion,pose,frame){
+ function directionalFrame({sheet,cell},view,motion,pose,frame,island){
   const image=canvas(size),ctx=image.getContext('2d');
   const animated=motionPoses.includes(motion);
   const column=animated?frame:0;
   const row=atlasRow(view,animated?motion:'walk');
   ctx.imageSmoothingEnabled=false;
   ctx.translate(size/2,foot);
+  if(island){
+   const phase=frame*Math.PI/6,side=Math.sin(view*Math.PI/4);
+   if(pose==='idle')ctx.scale(1-.007*Math.sin(phase),1+.017*Math.sin(phase));
+   if(pose==='run'){
+    ctx.translate(0,-3*Math.abs(Math.sin(phase)));
+    ctx.transform(1,0,-side*.065,1,0,0);
+   }
+   if(pose==='hit'){
+    const flinch=Math.sin(frame*Math.PI/11);
+    ctx.transform(1+.045*flinch,0,side*.12*flinch,1-.09*flinch,0,0);
+   }
+  }
   if(pose==='death'){
    const fall=Math.sin(frame/11*Math.PI/2);
    ctx.translate(-fall*28,0);
@@ -218,6 +231,37 @@ const ferroEnemySprites = (() => {
   ctx.resetTransform();
   if(pose==='hit')shade(ctx,view,Math.sin(Math.PI*frame/11));
   return image;
+ }
+
+ // Each strip contains twelve painted and in-betweened frames for a single view.
+ // Keep a small working set. The turnaround supplies the correct facing during a fetch.
+ const strips=new Map(), loading=new Set(), retryAfter=new Map();
+ function illustratedFrame(type,directional,view,pose,frame){
+  const facing=(views-view)%views;
+  const path='illustrated/'+type.atlas+'/'+pose+'-'+facing+'.webp';
+  let strip=strips.get(path);
+  if(strip){
+   strips.delete(path);
+   strips.set(path,strip);
+  }else if(!loading.has(path)&&Date.now()>=(retryAfter.get(path)??0)){
+   loading.add(path);
+   image(path).then(art=>{
+    if(art.naturalWidth!==1024||art.naturalHeight!==768)throw new Error('Invalid motion strip '+path);
+    strips.set(path,art);
+    if(strips.size>24)strips.delete(strips.keys().next().value);
+    retryAfter.delete(path);
+    window.dispatchEvent(new Event('ferro-enemy-frames'));
+   }).catch(()=>retryAfter.set(path,Date.now()+30000)).finally(()=>loading.delete(path));
+  }
+  const key=type.id+':illustrated:'+facing+':'+(strip?pose+':'+frame:'base');
+  let art=frames.get(key);
+  if(!art){
+   const index=strip?frame:facing,cell=directional.cell;
+   art=canvas(cell);
+   art.getContext('2d').drawImage(strip??directional.sheet,index%4*cell,Math.floor(index/4)*cell,cell,cell,0,0,cell,cell);
+  }
+  remember(key,art);
+  return art;
  }
 
  function shade(ctx,view,hit){
@@ -278,6 +322,7 @@ const ferroEnemySprites = (() => {
    const motion=pose==='run'?'walk':pose;
    const directional=entry.directional.get(type.slot);
    if(type.atlas&&!directional)return null;
+   if(type.illustrated)return illustratedFrame(type,directional,view,pose,frame);
    if(type.hd){
     const flex=Math.round(torso*3)/3;
     const key=type.id+':'+view+':'+pose+':'+frame+':'+flex;
@@ -288,13 +333,13 @@ const ferroEnemySprites = (() => {
     return art;
    }
    const sheet=entry.sheets[motionPoses.indexOf(motion)];
-   const cachedFrame=directional?(pose==='idle'?0:frame):sheet?Math.floor(frame/2):frame;
-   const key=type.id+':'+view+':'+(sheet||directional?motion:pose)+':'+cachedFrame;
+   const cachedFrame=directional?(pose==='idle'&&type.theme!==0?0:frame):sheet?Math.floor(frame/2):frame;
+   const key=type.id+':'+view+':'+(directional&&type.theme===0?pose:sheet||directional?motion:pose)+':'+cachedFrame;
    const geometry=entry.geometry[type.slot];
    if(!directional&&!geometry)return null;
    let image=frames.get(key);
    if(!image){
-    if(directional)image=directionalFrame(directional,view,motion,pose,cachedFrame);
+    if(directional)image=directionalFrame(directional,view,motion,pose,cachedFrame,type.theme===0);
     else if(sheet)image=motionFrame(sheet,type,view,cachedFrame,geometry);
     else image=draw(entry.sprites[type.slot],type,view,pose,frame,geometry);
    }

@@ -657,3 +657,21 @@ test('rockets have directional art, a finite impact animation, and separate flam
   arsenal.tick(1);
   assert.equal(render().length,1);
 });
+
+test('illustrated island enemies have a twelve-frame strip for every action and facing', () => {
+  const roster = runInNewContext(source + '\n' + read('../assets/enemies/catalog.js') + '\ntypes.filter(type => type.illustrated)');
+  assert.ok(roster.length >= 2);
+  for (const type of roster) {
+    const asset = path => readFileSync(new URL('../assets/enemies/illustrated/' + type.atlas + '/' + path + '.webp', import.meta.url));
+    const dimensions = data => {
+      assert.equal(data.toString('ascii', 8, 16), 'WEBPVP8X');
+      return [data.readUIntLE(24, 3) + 1, data.readUIntLE(27, 3) + 1];
+    };
+    assert.deepEqual(dimensions(asset('views')), [1024, 512]);
+    for (const pose of ['idle', 'walk', 'run', 'jump', 'shoot', 'hit', 'death']) {
+      for (let facing = 0; facing < 8; facing++) {
+        assert.deepEqual(dimensions(asset(pose + '-' + facing)), [1024, 768]);
+      }
+    }
+  }
+});

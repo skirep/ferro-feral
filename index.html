@@ -112,15 +112,15 @@ body.playing #photoButton{display:block}
 <script src="./campaign.js?v=sputnik"></script>
 <script src="./account.js"></script>
 <script src="./supabase-config.js"></script>
-<script src="./assets/enemies/catalog.js?v=boarding"></script>
+<script src="./assets/enemies/catalog.js?v=island-frames"></script>
 <script src="./assets/enemies/character-motion.js"></script>
-<script src="./assets/enemies/sprites.js?v=sputnik-hd"></script>
+<script src="./assets/enemies/sprites.js?v=island-frames"></script>
 <script src="./assets/combat.js?v=flamer"></script>
 <script src="./assets/arsenal.js"></script>
 <script src="./assets/props.js?v=props-360"></script>
 <script src="./assets/levels/arena.js?v=sputnik"></script>
 <script src="./assets/music.js"></script>
-<script src="./assets/enemies/bestiary.js?v=sputnik-hd"></script>
+<script src="./assets/enemies/bestiary.js?v=island-frames"></script>
 <script src="./assets/effects.js?v=precision-dodge"></script>
 <script src="./assets/scenery.js?v=convoy1"></script>
 <script>
@@ -832,6 +832,7 @@ let settings={quality:'balanced',particles:true,effects:!matchMedia('(prefers-re
 try{settings={...settings,...JSON.parse(localStorage.getItem('ferro-options')||'{}')}}catch{}
 settings.fxVolume=Number.isFinite(settings.fxVolume)?Math.max(0,Math.min(1,settings.fxVolume)):1;
 let redraw=true;
+window.addEventListener('ferro-enemy-frames',()=>{redraw=true});
 function setRenderSize(width,height){
  if(W===width&&H===height&&frameBuffer)return;
  W=width;H=height;

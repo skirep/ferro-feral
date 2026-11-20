@@ -132,7 +132,7 @@ const directionalByWorld = [islandDirectional,neonDirectional];
 const types = ferroEnemyWorlds.flatMap((world, theme) =>
  ferroEnemyProfiles.map(([kind,hp,speed,body,crest,arm,size,special], slot) => ({
   id:theme*ferroEnemyProfiles.length+slot, theme, slot, kind, hp, speed, body, crest, arm,
-  size, special, world, atlas:directionalByWorld[theme]?.[slot], name:ferroEnemyNames[theme][slot] ?? ferroWorldLevels[theme][slot-15].bossName
+  size, special, world, illustrated:theme===0 && slot<2, atlas:directionalByWorld[theme]?.[slot], name:ferroEnemyNames[theme][slot] ?? ferroWorldLevels[theme][slot-15].bossName
  }))
 );
 

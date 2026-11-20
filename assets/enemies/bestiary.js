@@ -21,7 +21,7 @@ const ferroBestiary=(()=>{
   const figure=document.createElement('figure');
   const canvas=document.createElement('canvas');
   const caption=document.createElement('figcaption');
-  canvas.width=canvas.height=192;
+  canvas.width=canvas.height=256;
   canvas.setAttribute('aria-hidden','true');
   caption.textContent=label;
   figure.append(canvas,caption);
@@ -55,6 +55,8 @@ const ferroBestiary=(()=>{
    if(art)ctx.drawImage(art,0,0,ctx.canvas.width,ctx.canvas.height);
   });
  }
+
+ window.addEventListener('ferro-enemy-frames',()=>{if(!panel.hidden)render()});
 
  function showPlacement(){
   const type=roster[Number(enemy.value)];
@@ -98,8 +100,11 @@ const ferroBestiary=(()=>{
   const revision=++opened;
   const type=roster[Number(enemy.value)];
   stop();
-  for(const option of extraOptions)option.hidden=option.disabled=!type.hd;
-  if(!type.hd&&pose.value in extra)pose.value='walk';
+  for(const option of extraOptions){
+   const supported=type.hd || type.theme===0 && !['aim','recover'].includes(option.value);
+   option.hidden=option.disabled=!supported;
+  }
+  if(pose.selectedOptions[0]?.disabled)pose.value='walk';
   slider.disabled=play.disabled=true;
   placement.textContent='Carregant els atles…';
   for(const ctx of previews)ctx.clearRect(0,0,ctx.canvas.width,ctx.canvas.height);
